@@ -334,25 +334,30 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
+
     u = get_user(update.effective_user.id)
 
     now = time.time()
 
-    if now - u["last_daily"] < 86400:
-        left = 86400 - int(now - u["last_daily"])
-        hours = left // 3600
-        minutes = (left % 3600) // 60
+    if now - u.get("last_daily", 0) < 86400:
+        remaining = 86400 - (now - u["last_daily"])
+        hours = int(remaining // 3600)
+        minutes = int((remaining % 3600) // 60)
+
         return await update.message.reply_text(
-            f"❌ Daily already claimed\n⏳ Come back in {hours}h {minutes}m"
+            f"❌ Daily already claimed\n⏳ Come back in {hours}h {minutes}m",
+            reply_to_message_id=update.message.id
         )
 
-    u["coins"] += DAILY_REWARD
+    u["coins"] += 5000
     u["last_daily"] = now
 
     save()
 
-    await update.message.reply_text("🎁 Daily Claimed! +$5000")
+    await update.message.reply_text(
+        "🎁 Daily Claimed! +$5000",
+        reply_to_message_id=update.message.id
+    )
 
 
 async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
