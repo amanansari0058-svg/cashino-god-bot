@@ -653,8 +653,9 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     attacker["kills"] += 1
     attacker["last_kill"] = time.time()
 
-    save_user(update.effective_user.id, u)
-save()
+    save_user(attacker_user.id, attacker)
+    save_user(victim_user.id, victim)
+    save()
 
     await update.message.reply_text(
         f"💀 KILL SUCCESS\n\n"
