@@ -919,6 +919,19 @@ def win_message(user, emoji, result, pick, amount):
 """
 
 
+def lose_message(user, emoji, result, pick, amount):
+    return f"""
+💀 {emoji} GALAT! HAARA!
+━━━━━━━━━━━━━━━━━━━━━
+{emoji} Result: {result}
+❌ Tera pick: {pick}
+
+😔 Nuksan: -${fmt(amount)}
+
+👑 <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 💸
+"""
+
+
 @admin_required
 async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
@@ -929,8 +942,20 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     u = get_user(update.effective_user.id)
 
-    bet = int(context.args[0])
+    try:
+        bet = int(context.args[0])
+    except:
+        return await update.message.reply_text(
+            "❌ Invalid amount",
+            reply_to_message_id=update.message.id
+        )
+
     choice = context.args[1].lower()
+    if choice not in ["h", "t"]:
+        return await update.message.reply_text(
+            "❌ Choose h or t",
+            reply_to_message_id=update.message.id
+        )
 
     error = check_bet(u, bet)
     if error:
@@ -958,7 +983,7 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pick_text = "Heads" if choice == "h" else "Tails"
 
     if result_key == choice:
-        win = bet * 2   # 🔥 FIX
+        win = bet * 2
         u["coins"] += win
         text = win_message(update.effective_user, "🪙", result_text, pick_text, win)
     else:
@@ -973,7 +998,8 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_to_message_id=update.message.id
     )
-            
+
+
 @admin_required
 async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
@@ -983,8 +1009,15 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     u = get_user(update.effective_user.id)
-    bet = int(context.args[0])
-    guess = int(context.args[1])
+
+    try:
+        bet = int(context.args[0])
+        guess = int(context.args[1])
+    except:
+        return await update.message.reply_text(
+            "❌ Invalid input",
+            reply_to_message_id=update.message.id
+        )
 
     if guess < 1 or guess > 6:
         return await update.message.reply_text(
@@ -1009,12 +1042,12 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.sleep(3)
 
     if roll == guess:
-        win = bet * 5   # 🔥 FIX
+        win = bet * 5
         u["coins"] += win
-        text = win_message(update.effective_user, "🎲", roll, guess, win)
+        text = win_message(update.effective_user, "🎲", str(roll), str(guess), win)
     else:
         u["coins"] -= bet
-        text = lose_message(update.effective_user, "🎲", roll, guess, bet)
+        text = lose_message(update.effective_user, "🎲", str(roll), str(guess), bet)
 
     save_user(update.effective_user.id, u)
     save()
@@ -1025,6 +1058,7 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
+
 @admin_required
 async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 1:
@@ -1034,7 +1068,14 @@ async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     u = get_user(update.effective_user.id)
-    bet = int(context.args[0])
+
+    try:
+        bet = int(context.args[0])
+    except:
+        return await update.message.reply_text(
+            "❌ Invalid amount",
+            reply_to_message_id=update.message.id
+        )
 
     error = check_bet(u, bet)
     if error:
@@ -1052,20 +1093,19 @@ async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
     value = slot_msg.dice.value
     await asyncio.sleep(3)
 
-    # 🎰 Slot outcomes
-    if value == 64:  # Jackpot
+    if value == 64:
         win = bet * 10
         u["coins"] += win
         result = "💎💎💎 JACKPOT"
         text = win_message(update.effective_user, "🎰", result, "🎰", win)
 
-    elif value in [1, 22, 43]:  # mid win
+    elif value in [1, 22, 43]:
         win = bet * 3
         u["coins"] += win
         result = "🔥 Double Match"
         text = win_message(update.effective_user, "🎰", result, "🎰", win)
 
-    elif value in [16, 32]:  # small win
+    elif value in [16, 32]:
         win = bet * 2
         u["coins"] += win
         result = "✨ Small Win"
@@ -1085,6 +1125,7 @@ async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
+
 @admin_required
 async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
@@ -1096,7 +1137,14 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = get_user(update.effective_user.id)
 
     choice = context.args[0].lower()
-    bet = int(context.args[1])
+
+    try:
+        bet = int(context.args[1])
+    except:
+        return await update.message.reply_text(
+            "❌ Invalid amount",
+            reply_to_message_id=update.message.id
+        )
 
     if choice not in ["red", "green"]:
         return await update.message.reply_text(
@@ -1120,14 +1168,13 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     value = dart.dice.value
     await asyncio.sleep(3)
 
-    # 🎯 50-50 result
     if value in [1, 2, 3]:
         result = "red"
     else:
         result = "green"
 
     if result == choice:
-        win = bet * 2   # 🔥 FIX (2x payout)
+        win = bet * 2
         u["coins"] += win
         text = win_message(update.effective_user, "🎨", result.upper(), choice.upper(), win)
     else:
@@ -1141,8 +1188,7 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text,
         parse_mode="HTML",
         reply_to_message_id=update.message.id
-    )
-
+        )        
 
 # =========================
 # LEADERBOARD
