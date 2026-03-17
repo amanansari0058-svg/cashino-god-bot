@@ -529,25 +529,34 @@ async def taxpool_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 
 @admin_required
+@admin_required
 async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     if len(context.args) < 1:
-        return await update.message.reply_text("Usage: /deposit <amount>")
+        return await update.message.reply_text(
+            "Usage: /deposit <amount>",
+            reply_to_message_id=update.message.id
+        )
 
     u = get_user(update.effective_user.id)
     amount = int(context.args[0])
 
     if u["coins"] < amount:
-        return await update.message.reply_text("❌ Not enough coins")
+        return await update.message.reply_text(
+            "❌ Not enough coins",
+            reply_to_message_id=update.message.id
+        )
 
     u["coins"] -= amount
     u["bank"] += amount
-    save_user(update.effective_user.id, u)
-save()
 
-    await update.message.reply_text(f"🏦 Deposited ${fmt(amount)}")
+    save()
 
+    await update.message.reply_text(
+        f"🏦 Deposited ${fmt(amount)}",
+        reply_to_message_id=update.message.id
+    )
 
 @admin_required
 async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
