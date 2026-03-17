@@ -39,7 +39,8 @@ from telegram.ext import (
 # CONFIG
 # =========================
 
-TOKEN = "8680703173:AAFSuvriGJUy9tt8Mg2HB35JpCsBziKaePI"
+import os
+TOKEN = os.getenv("TOKEN")
 OWNER_ID = 6479017313
 DB_FILE = "users.json"
 
