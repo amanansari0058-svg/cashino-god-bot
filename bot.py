@@ -147,6 +147,10 @@ async def ensure_group_admin(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     return True
 
+# =========================
+# START
+# =========================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
@@ -705,6 +709,7 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     error = check_bet(u, bet)
     if error:
+        return await update.message.reply_text(error)
 
 # =========================
 # GAMES
