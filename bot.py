@@ -208,6 +208,22 @@ def save_user(uid, user):
             ))
         conn.commit()
 
+def get_user_rank(uid):
+    uid = str(uid)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT rank
+                FROM (
+                    SELECT uid,
+                           RANK() OVER (ORDER BY (coins + bank) DESC) AS rank
+                    FROM users
+                ) ranked
+                WHERE uid = %s
+            """, (uid,))
+            row = cur.fetchone()
+            return int(row["rank"]) if row else 0
 
 def update_name_from_update(update: Update):
     uid = str(update.effective_user.id)
@@ -427,13 +443,16 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_required
 async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
-    u = get_user(update.effective_user.id)
+
+    uid = update.effective_user.id
+    u = get_user(uid)
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
     kills = int(u.get("kills", 0))
+    rank = get_user_rank(uid)
 
-    protect_left = int(u.get("protected_until", 0) - time.time())
+    protect_left = int(float(u.get("protected_until", 0)) - time.time())
     if protect_left > 0:
         protect_text = f"🛡 Protection: {protect_left // 3600}h {(protect_left % 3600) // 60}m left"
     else:
@@ -442,6 +461,7 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"👑 {update.effective_user.first_name}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🏆 Rank: #{rank}\n"
         f"🪙 Coins: ${fmt(coins)}\n"
         f"🏦 Bank: ${fmt(bank)}\n"
         f"💀 Kills: {kills}\n"
@@ -1149,7 +1169,6 @@ async def toprich(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await toprich(update, context)
 
-
 # =========================
 # ADMIN
 # =========================
@@ -1163,61 +1182,97 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("❌ Owner only command")
 
     text = """
-👑 ADMIN PANEL
+👑 ADMIN PANEL (Reply Based)
 
-/setcoins <user_id> <amount>
-/addcoins <user_id> <amount>
-/resetuser <user_id>
-/setbank <user_id> <amount>
-/addbank <user_id> <amount>
-/userinfo <user_id>
+/setcoins <amount>
+/addcoins <amount>
+/resetuser
+/setbank <amount>
+/addbank <amount>
+/userinfo
+
+👉 User ke message pe reply karke use karo
 """
 
     await update.message.reply_text(text)
 
 
+def get_target_user(update):
+    if not update.message.reply_to_message:
+        return None
+    return update.message.reply_to_message.from_user
+
+
+# -------------------------
+# SET COINS
+# -------------------------
 async def setcoins(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
         return await update.message.reply_text("❌ Owner only command")
 
-    if len(context.args) < 2:
-        return await update.message.reply_text("Usage: /setcoins <user_id> <amount>")
+    target = get_target_user(update)
+    if not target:
+        return await update.message.reply_text("❌ Reply to user")
 
-    uid = context.args[0]
-    amount = int(context.args[1])
+    if len(context.args) < 1:
+        return await update.message.reply_text("Usage: /setcoins <amount>")
+
+    uid = str(target.id)
+    amount = int(context.args[0])
 
     user = get_user(uid)
     user["coins"] = amount
+
+    save_user(uid, user)
     save()
 
-    await update.message.reply_text(f"✅ Coins set to ${fmt(amount)}")
+    await update.message.reply_text(
+        f"✅ Coins set to ${fmt(amount)} for <a href='tg://user?id={uid}'>{target.first_name}</a>",
+        parse_mode="HTML"
+    )
 
 
+# -------------------------
+# ADD COINS
+# -------------------------
 async def addcoins(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
         return await update.message.reply_text("❌ Owner only command")
 
-    if len(context.args) < 2:
-        return await update.message.reply_text("Usage: /addcoins <user_id> <amount>")
+    target = get_target_user(update)
+    if not target:
+        return await update.message.reply_text("❌ Reply to user")
 
-    uid = context.args[0]
-    amount = int(context.args[1])
+    if len(context.args) < 1:
+        return await update.message.reply_text("Usage: /addcoins <amount>")
+
+    uid = str(target.id)
+    amount = int(context.args[0])
 
     user = get_user(uid)
-    user["coins"] += amount
+    user["coins"] = int(user.get("coins", 0)) + amount
+
+    save_user(uid, user)
     save()
 
-    await update.message.reply_text(f"✅ Added ${fmt(amount)} coins")
+    await update.message.reply_text(
+        f"✅ Added ${fmt(amount)} to <a href='tg://user?id={uid}'>{target.first_name}</a>",
+        parse_mode="HTML"
+    )
 
 
+# -------------------------
+# RESET USER
+# -------------------------
 async def resetuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
         return await update.message.reply_text("❌ Owner only command")
 
-    if len(context.args) < 1:
-        return await update.message.reply_text("Usage: /resetuser <user_id>")
+    target = get_target_user(update)
+    if not target:
+        return await update.message.reply_text("❌ Reply to user")
 
-    uid = context.args[0]
+    uid = str(target.id)
     user = get_user(uid)
 
     user["coins"] = 0
@@ -1228,71 +1283,97 @@ async def resetuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user["protected_until"] = 0
     user["last_rob"] = 0
     user["last_kill"] = 0
+    user["last_bank_tax"] = 0
 
+    save_user(uid, user)
     save()
 
-    await update.message.reply_text("✅ User reset successful")
+    await update.message.reply_text(
+        f"✅ Reset done for <a href='tg://user?id={uid}'>{target.first_name}</a>",
+        parse_mode="HTML"
+    )
 
 
+# -------------------------
+# SET BANK
+# -------------------------
 async def setbank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
         return await update.message.reply_text("❌ Owner only command")
 
-    if len(context.args) < 2:
-        return await update.message.reply_text("Usage: /setbank <user_id> <amount>")
+    target = get_target_user(update)
+    if not target:
+        return await update.message.reply_text("❌ Reply to user")
 
-    uid = context.args[0]
-    amount = int(context.args[1])
+    if len(context.args) < 1:
+        return await update.message.reply_text("Usage: /setbank <amount>")
+
+    uid = str(target.id)
+    amount = int(context.args[0])
 
     user = get_user(uid)
     user["bank"] = amount
+
+    save_user(uid, user)
     save()
 
-    await update.message.reply_text(f"✅ Bank set to ${fmt(amount)}")
+    await update.message.reply_text(
+        f"✅ Bank set to ${fmt(amount)} for <a href='tg://user?id={uid}'>{target.first_name}</a>",
+        parse_mode="HTML"
+    )
 
 
+# -------------------------
+# ADD BANK
+# -------------------------
 async def addbank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
         return await update.message.reply_text("❌ Owner only command")
 
-    if len(context.args) < 2:
-        return await update.message.reply_text("Usage: /addbank <user_id> <amount>")
+    target = get_target_user(update)
+    if not target:
+        return await update.message.reply_text("❌ Reply to user")
 
-    uid = context.args[0]
-    amount = int(context.args[1])
+    if len(context.args) < 1:
+        return await update.message.reply_text("Usage: /addbank <amount>")
+
+    uid = str(target.id)
+    amount = int(context.args[0])
 
     user = get_user(uid)
-    user["bank"] += amount
+    user["bank"] = int(user.get("bank", 0)) + amount
+
+    save_user(uid, user)
     save()
 
-    await update.message.reply_text(f"✅ Added ${fmt(amount)} to bank")
+    await update.message.reply_text(
+        f"✅ Added ${fmt(amount)} to bank of <a href='tg://user?id={uid}'>{target.first_name}</a>",
+        parse_mode="HTML"
+    )
 
 
+# -------------------------
+# USER INFO
+# -------------------------
 async def userinfo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
         return await update.message.reply_text("❌ Owner only command")
 
-    if len(context.args) < 1:
-        return await update.message.reply_text("Usage: /userinfo <user_id>")
+    target = get_target_user(update)
+    if not target:
+        return await update.message.reply_text("❌ Reply to user")
 
-    uid = context.args[0]
+    uid = str(target.id)
     user = get_user(uid)
 
-    protect_left = int(user["protected_until"] - time.time())
-    dead_left = int(user["dead_until"] - time.time())
+    protect_left = int(float(user.get("protected_until", 0)) - time.time())
+    dead_left = int(float(user.get("dead_until", 0)) - time.time())
 
-    if protect_left > 0:
-        protect_text = f"{protect_left//3600}h {(protect_left%3600)//60}m left"
-    else:
-        protect_text = "Not active"
-
-    if dead_left > 0:
-        dead_text = f"{dead_left//3600}h {(dead_left%3600)//60}m left"
-    else:
-        dead_text = "Not dead"
+    protect_text = f"{protect_left//3600}h {(protect_left%3600)//60}m left" if protect_left > 0 else "Not active"
+    dead_text = f"{dead_left//3600}h {(dead_left%3600)//60}m left" if dead_left > 0 else "Not dead"
 
     text = (
-        f"👤 User ID: {uid}\n"
+        f"👤 <a href='tg://user?id={uid}'>{target.first_name}</a>\n"
         f"🪙 Coins: ${fmt(user['coins'])}\n"
         f"🏦 Bank: ${fmt(user['bank'])}\n"
         f"💀 Kills: {user['kills']}\n"
@@ -1300,7 +1381,8 @@ async def userinfo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"☠️ Dead: {dead_text}"
     )
 
-    await update.message.reply_text(text)
+    await update.message.reply_text(text, parse_mode="HTML")
+
 
 # =========================
 # APP START
