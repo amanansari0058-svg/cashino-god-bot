@@ -41,7 +41,7 @@ from telegram.ext import (
 # CONFIG
 # =========================
 
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 6479017313
 
 START_COINS = 0
@@ -1313,4 +1313,9 @@ app.add_handler(CallbackQueryHandler(button))
 
 print("God Economy Bot started...")
 keep_alive()
-app.run_polling()
+
+async def clear():
+    await app.bot.delete_webhook(drop_pending_updates=True)
+
+app.post_init = clear
+app.run_polling(drop_pending_updates=True)
