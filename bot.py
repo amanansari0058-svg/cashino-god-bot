@@ -68,40 +68,49 @@ from psycopg.rows import dict_row
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
+def get_conn():
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 def init_db():
     global tax_pool
 
-    with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                uid TEXT PRIMARY KEY,
-                name TEXT DEFAULT 'User',
-                coins BIGINT DEFAULT 0,
-                bank BIGINT DEFAULT 0,
-                kills BIGINT DEFAULT 0,
-                last_daily DOUBLE PRECISION DEFAULT 0,
-                dead_until DOUBLE PRECISION DEFAULT 0,
-                protected_until DOUBLE PRECISION DEFAULT 0,
-                last_rob DOUBLE PRECISION DEFAULT 0,
-                last_kill DOUBLE PRECISION DEFAULT 0
-            )
-        """)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    uid TEXT PRIMARY KEY,
+                    name TEXT DEFAULT 'User',
+                    coins BIGINT DEFAULT 0,
+                    bank BIGINT DEFAULT 0,
+                    kills BIGINT DEFAULT 0,
+                    last_daily DOUBLE PRECISION DEFAULT 0,
+                    dead_until DOUBLE PRECISION DEFAULT 0,
+                    protected_until DOUBLE PRECISION DEFAULT 0,
+                    last_rob DOUBLE PRECISION DEFAULT 0,
+                    last_kill DOUBLE PRECISION DEFAULT 0,
+                    last_bank_tax DOUBLE PRECISION DEFAULT 0
+                )
+            """)
 
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS bot_meta (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-        """)
+            # 🔥 YE IMPORTANT FIX (OLD USERS KE LIYE)
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS last_bank_tax DOUBLE PRECISION DEFAULT 0
+            """)
 
-        cur.execute("""
-            INSERT INTO bot_meta (key, value)
-            VALUES ('tax_pool', '0')
-            ON CONFLICT (key) DO NOTHING
-        """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bot_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """)
+
+            cur.execute("""
+                INSERT INTO bot_meta (key, value)
+                VALUES ('tax_pool', '0')
+                ON CONFLICT (key) DO NOTHING
+            """)
 
         conn.commit()
 
@@ -109,20 +118,22 @@ def init_db():
 
 
 def get_tax_pool():
-    with conn.cursor() as cur:
-        cur.execute("SELECT value FROM bot_meta WHERE key = 'tax_pool'")
-        row = cur.fetchone()
-        return int(row["value"]) if row else 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM bot_meta WHERE key = 'tax_pool'")
+            row = cur.fetchone()
+            return int(row["value"]) if row else 0
 
 
 def set_tax_pool(value):
-    with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO bot_meta (key, value)
-            VALUES ('tax_pool', %s)
-            ON CONFLICT (key)
-            DO UPDATE SET value = EXCLUDED.value
-        """, (str(int(value)),))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO bot_meta (key, value)
+                VALUES ('tax_pool', %s)
+                ON CONFLICT (key)
+                DO UPDATE SET value = EXCLUDED.value
+            """, (str(int(value)),))
         conn.commit()
 
 
@@ -134,22 +145,23 @@ def save():
 def get_user(uid):
     uid = str(uid)
 
-    with conn.cursor() as cur:
-        cur.execute("SELECT * FROM users WHERE uid = %s", (uid,))
-        user = cur.fetchone()
-
-        if not user:
-            cur.execute("""
-                INSERT INTO users (
-                    uid, name, coins, bank, kills,
-                    last_daily, dead_until, protected_until,
-                    last_rob, last_kill
-                )
-                VALUES (%s, 'User', 0, 0, 0, 0, 0, 0, 0, 0)
-                RETURNING *
-            """, (uid,))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE uid = %s", (uid,))
             user = cur.fetchone()
-            conn.commit()
+
+            if not user:
+                cur.execute("""
+                    INSERT INTO users (
+                        uid, name, coins, bank, kills,
+                        last_daily, dead_until, protected_until,
+                        last_rob, last_kill, last_bank_tax
+                    )
+                    VALUES (%s, 'User', 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                    RETURNING *
+                """, (uid,))
+                user = cur.fetchone()
+                conn.commit()
 
     user["coins"] = int(user.get("coins", 0))
     user["bank"] = int(user.get("bank", 0))
@@ -159,6 +171,7 @@ def get_user(uid):
     user["protected_until"] = float(user.get("protected_until", 0))
     user["last_rob"] = float(user.get("last_rob", 0))
     user["last_kill"] = float(user.get("last_kill", 0))
+    user["last_bank_tax"] = float(user.get("last_bank_tax", 0))
     user["name"] = str(user.get("name", "User"))
 
     return user
@@ -167,31 +180,32 @@ def get_user(uid):
 def save_user(uid, user):
     uid = str(uid)
 
-    with conn.cursor() as cur:
-        cur.execute("""
-            UPDATE users
-            SET name=%s,
-                coins=%s,
-                bank=%s,
-                kills=%s,
-                last_daily=%s,
-                dead_until=%s,
-                protected_until=%s,
-                last_rob=%s,
-                last_kill=%s
-            WHERE uid=%s
-        """, (
-            user.get("name", "User"),
-            int(user.get("coins", 0)),
-            int(user.get("bank", 0)),
-            int(user.get("kills", 0)),
-            float(user.get("last_daily", 0)),
-            float(user.get("dead_until", 0)),
-            float(user.get("protected_until", 0)),
-            float(user.get("last_rob", 0)),
-            float(user.get("last_kill", 0)),
-            uid
-        ))
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users
+                SET name=%s,
+                    coins=%s,
+                    bank=%s,
+                    kills=%s,
+                    last_daily=%s,
+                    dead_until=%s,
+                    protected_until=%s,
+                    last_rob=%s,
+                    last_kill=%s
+                WHERE uid=%s
+            """, (
+                user.get("name", "User"),
+                int(user.get("coins", 0)),
+                int(user.get("bank", 0)),
+                int(user.get("kills", 0)),
+                float(user.get("last_daily", 0)),
+                float(user.get("dead_until", 0)),
+                float(user.get("protected_until", 0)),
+                float(user.get("last_rob", 0)),
+                float(user.get("last_kill", 0)),
+                uid
+            ))
         conn.commit()
 
 
@@ -469,58 +483,87 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
-
 @admin_required
 async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global tax_pool
     update_name_from_update(update)
 
-    if len(context.args) < 2:
+    if not update.message.reply_to_message:
         return await update.message.reply_text(
-            "Usage: /give <user_id> <amount>",
+            "❌ Kisi user ke message par reply karke /give <amount> use karo",
             reply_to_message_id=update.message.id
         )
 
-    sender = get_user(update.effective_user.id)
-    uid = str(context.args[0])
-    amount = int(context.args[1])
-
-    if amount <= 0:
+    if len(context.args) < 1:
         return await update.message.reply_text(
-            "❌ Amount must be greater than 0",
+            "Usage: /give <amount>",
             reply_to_message_id=update.message.id
         )
 
-    if int(sender.get("coins", 0)) < amount:
-        return await update.message.reply_text(
-            "❌ Not enough coins",
-            reply_to_message_id=update.message.id
-        )
+    sender_user = update.effective_user
+    target_user = update.message.reply_to_message.from_user
+
+    if target_user.is_bot:
+        return await update.message.reply_text("❌ Bot ko coins nahi de sakte")
+
+    if target_user.id == sender_user.id:
+        return await update.message.reply_text("❌ Khud ko coins nahi de sakte")
+
+    amount = int(context.args[0])
+
+    sender = get_user(sender_user.id)
+    target = get_user(target_user.id)
+
+    if sender["coins"] < amount:
+        return await update.message.reply_text("❌ Not enough coins")
 
     tax = int(amount * GIVE_TAX)
-    send = amount - tax
+    send_amount = amount - tax
 
-    target = get_user(uid)
-
-    sender["coins"] = int(sender.get("coins", 0)) - amount
-    target["coins"] = int(target.get("coins", 0)) + send
+    sender["coins"] -= amount
+    target["coins"] += send_amount
     tax_pool += tax
 
-    save_user(update.effective_user.id, sender)
-    save_user(uid, target)
+    save_user(sender_user.id, sender)
+    save_user(target_user.id, target)
     save()
 
+    sender_name = html.escape(sender_user.first_name)
+    target_name = html.escape(target_user.first_name)
+
     await update.message.reply_text(
-        f"✅ Sent ${fmt(send)}\n💰 Tax: ${fmt(tax)}",
+        f"💸 Transfer Successful!\n\n"
+        f"👤 From: <a href='tg://user?id={sender_user.id}'>{sender_name}</a>\n"
+        f"👤 To: <a href='tg://user?id={target_user.id}'>{target_name}</a>\n"
+        f"💰 Sent: ${fmt(send_amount)}\n"
+        f"🏦 Tax: ${fmt(tax)}",
+        parse_mode="HTML",
         reply_to_message_id=update.message.id
     )
 
+# =========================
+# BANK SETTINGS
+# =========================
 
-async def taxpool_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        f"💰 TAX POOL: ${fmt(tax_pool)}",
-        reply_to_message_id=update.message.id
-    )
+MAX_BANK = 10_000_000
+BANK_TAX_RATE = 0.03
+BANK_TAX_TIME = 86400  # 1 day
+
+
+def apply_bank_tax(uid, user):
+    now = time.time()
+
+    last_tax = float(user.get("last_bank_tax", 0))
+
+    if now - last_tax >= BANK_TAX_TIME:
+        tax = int(user["bank"] * BANK_TAX_RATE)
+
+        if tax > 0:
+            user["bank"] -= tax
+
+        user["last_bank_tax"] = now
+        save_user(uid, user)
+
 
 # =========================
 # BANK
@@ -536,7 +579,11 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    u = get_user(update.effective_user.id)
+    uid = update.effective_user.id
+    u = get_user(uid)
+
+    apply_bank_tax(uid, u)  # 🔥 TAX APPLY
+
     amount = int(context.args[0])
 
     if amount <= 0:
@@ -551,16 +598,24 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    u["coins"] = int(u.get("coins", 0)) - amount
-    u["bank"] = int(u.get("bank", 0)) + amount
+    # 🔥 MAX BANK LIMIT
+    if int(u.get("bank", 0)) + amount > MAX_BANK:
+        return await update.message.reply_text(
+            f"❌ Bank limit reached! Max: ${fmt(MAX_BANK)}",
+            reply_to_message_id=update.message.id
+        )
 
-    save_user(update.effective_user.id, u)
+    u["coins"] -= amount
+    u["bank"] += amount
+
+    save_user(uid, u)
     save()
 
     await update.message.reply_text(
         f"🏦 Deposited ${fmt(amount)}",
         reply_to_message_id=update.message.id
     )
+
 
 @admin_required
 async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -572,7 +627,11 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    u = get_user(update.effective_user.id)
+    uid = update.effective_user.id
+    u = get_user(uid)
+
+    apply_bank_tax(uid, u)  # 🔥 TAX APPLY
+
     amount = int(context.args[0])
 
     if amount <= 0:
@@ -587,10 +646,10 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    u["bank"] = int(u.get("bank", 0)) - amount
-    u["coins"] = int(u.get("coins", 0)) + amount
+    u["bank"] -= amount
+    u["coins"] += amount
 
-    save_user(update.effective_user.id, u)
+    save_user(uid, u)
     save()
 
     await update.message.reply_text(
@@ -598,13 +657,20 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
+
 @admin_required
 async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
-    u = get_user(update.effective_user.id)
+
+    uid = update.effective_user.id
+    u = get_user(uid)
+
+    apply_bank_tax(uid, u)  # 🔥 TAX APPLY
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
+
+    save_user(uid, u)
 
     await update.message.reply_text(
         f"💰 Wallet: ${fmt(coins)}\n🏦 Bank: ${fmt(bank)}",
@@ -811,51 +877,18 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # GAMES
 # =========================
 
-def check_bet(u, bet):
-    try:
-        bet = int(bet)
-    except:
-        return "❌ Invalid bet amount"
-
-    coins = int(u.get("coins", 0))
-
-    if bet < MIN_BET:
-        return f"❌ Minimum bet is ${fmt(MIN_BET)}"
-
-    if bet > MAX_BET:
-        return f"❌ Maximum bet is ${fmt(MAX_BET)}"
-
-    if coins < bet:
-        return "❌ Not enough coins"
-
-    return None
-
-
-def win_message(user, emoji, result, pick, amount, multi=1):
+def win_message(user, emoji, result, pick, amount):
     return f"""
 ✨ {emoji} SAHI! YOU WON!
 ━━━━━━━━━━━━━━━━━━━━━
 {emoji} Result: {result}
 ✅ Tera pick: {pick}
 
-🪙 Jeet: +${fmt(amount)} ({multi}x)
+🪙 Jeet: +${fmt(amount)}
 
 👑 Lucky ho <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 🔥
 """
 
-
-def lose_message(user, emoji, result, pick, amount):
-    return f"""
-💀 {emoji} GALAT! HAARA!
-━━━━━━━━━━━━━━━━━━━━━
-{emoji} Result: {result}
-❌ Tera pick: {pick}
-
-😔 Nuksan: -${fmt(amount)} coins
-
-Agli baar sahi lagana
-👑 <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 💸
-"""
 
 @admin_required
 async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -896,8 +929,9 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pick_text = "Heads" if choice == "h" else "Tails"
 
     if result_key == choice:
-        u["coins"] += bet
-        text = win_message(update.effective_user, "🪙", result_text, pick_text, bet, 2)
+        win = bet * 2   # 🔥 FIX
+        u["coins"] += win
+        text = win_message(update.effective_user, "🪙", result_text, pick_text, win)
     else:
         u["coins"] -= bet
         text = lose_message(update.effective_user, "🪙", result_text, pick_text, bet)
@@ -946,9 +980,9 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.sleep(3)
 
     if roll == guess:
-        win = bet * 5
+        win = bet * 5   # 🔥 FIX
         u["coins"] += win
-        text = win_message(update.effective_user, "🎲", roll, guess, win, 5)
+        text = win_message(update.effective_user, "🎲", roll, guess, win)
     else:
         u["coins"] -= bet
         text = lose_message(update.effective_user, "🎲", roll, guess, bet)
@@ -963,23 +997,15 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 @admin_required
-async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) < 2:
+async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) < 1:
         return await update.message.reply_text(
-            "Usage: /roulette <amount> <0-36>",
+            "Usage: /slots <amount>",
             reply_to_message_id=update.message.id
         )
 
     u = get_user(update.effective_user.id)
-
     bet = int(context.args[0])
-    guess = int(context.args[1])
-
-    if guess < 0 or guess > 36:
-        return await update.message.reply_text(
-            "❌ Choose number 0 to 36",
-            reply_to_message_id=update.message.id
-        )
 
     error = check_bet(u, bet)
     if error:
@@ -997,15 +1023,29 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
     value = slot_msg.dice.value
     await asyncio.sleep(3)
 
-    result = value % 37
-
-    if result == guess:
-        win = bet * 35
+    # 🎰 Slot outcomes
+    if value == 64:  # Jackpot
+        win = bet * 10
         u["coins"] += win
-        text = win_message(update.effective_user, "🎡", result, guess, win, 35)
+        result = "💎💎💎 JACKPOT"
+        text = win_message(update.effective_user, "🎰", result, "🎰", win)
+
+    elif value in [1, 22, 43]:  # mid win
+        win = bet * 3
+        u["coins"] += win
+        result = "🔥 Double Match"
+        text = win_message(update.effective_user, "🎰", result, "🎰", win)
+
+    elif value in [16, 32]:  # small win
+        win = bet * 2
+        u["coins"] += win
+        result = "✨ Small Win"
+        text = win_message(update.effective_user, "🎰", result, "🎰", win)
+
     else:
         u["coins"] -= bet
-        text = lose_message(update.effective_user, "🎡", result, guess, bet)
+        result = "❌ No Match"
+        text = lose_message(update.effective_user, "🎰", result, "🎰", bet)
 
     save_user(update.effective_user.id, u)
     save()
@@ -1020,7 +1060,7 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         return await update.message.reply_text(
-            "Usage: /color <red/green/violet> <amount>",
+            "Usage: /color <red/green> <amount>",
             reply_to_message_id=update.message.id
         )
 
@@ -1029,9 +1069,9 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = context.args[0].lower()
     bet = int(context.args[1])
 
-    if choice not in ["red", "green", "violet"]:
+    if choice not in ["red", "green"]:
         return await update.message.reply_text(
-            "❌ Choose red, green or violet",
+            "❌ Choose red or green",
             reply_to_message_id=update.message.id
         )
 
@@ -1051,26 +1091,19 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     value = dart.dice.value
     await asyncio.sleep(3)
 
-    if value in [1, 2]:
+    # 🎯 50-50 result
+    if value in [1, 2, 3]:
         result = "red"
-    elif value in [3, 4]:
-        result = "green"
     else:
-        result = "violet"
+        result = "green"
 
     if result == choice:
-        if result == "violet":
-            win = bet * 3
-            multi = 3
-        else:
-            win = bet * 2
-            multi = 2
-
+        win = bet * 2   # 🔥 FIX (2x payout)
         u["coins"] += win
-        text = win_message(update.effective_user, "🎨", result, choice, win, multi)
+        text = win_message(update.effective_user, "🎨", result.upper(), choice.upper(), win)
     else:
         u["coins"] -= bet
-        text = lose_message(update.effective_user, "🎨", result, choice, bet)
+        text = lose_message(update.effective_user, "🎨", result.upper(), choice.upper(), bet)
 
     save_user(update.effective_user.id, u)
     save()
@@ -1299,7 +1332,7 @@ app.add_handler(CommandHandler("revive", revive))
 
 app.add_handler(CommandHandler("flip", flip))
 app.add_handler(CommandHandler("dice", dice))
-app.add_handler(CommandHandler("roulette", roulette))
+app.add_handler(CommandHandler("slots", slots))
 app.add_handler(CommandHandler("color", color))
 
 app.add_handler(CommandHandler("top", top))
@@ -1324,4 +1357,11 @@ async def clear(app):
 app.post_init = clear
 
 print("STARTING POLLING")
-app.run_polling(drop_pending_updates=True)
+
+try:
+    app.run_polling(
+        drop_pending_updates=True,
+        allowed_updates=Update.ALL_TYPES
+    )
+except Exception as e:
+    print("BOT CRASH:", e)
