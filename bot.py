@@ -470,7 +470,6 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u["coins"] += 5000
     u["last_daily"] = now
 
-    save_user(update.effective_user.id, u)
 save()
 
     await update.message.reply_text(
