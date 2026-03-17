@@ -1,3 +1,22 @@
+from flask import Flask
+import threading
+import os
+
+web = Flask(__name__)
+
+@web.route("/")
+def home():
+    return "Bot is alive"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    web.run(host="0.0.0.0", port=port)
+
+def keep_alive():
+    t = threading.Thread(target=run_web)
+    t.daemon = True
+    t.start()
+
 # =========================
 # IMPORTS
 # =========================
@@ -977,4 +996,5 @@ app.add_handler(CommandHandler("userinfo", userinfo))
 app.add_handler(CallbackQueryHandler(button))
 
 print("God Economy Bot started...")
+keep_alive()
 app.run_polling()
