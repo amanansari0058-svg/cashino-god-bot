@@ -680,9 +680,6 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_to_message_id=update.message.id
     )
-
-
-        return await update.message.reply_text(
         
 
 @admin_required
