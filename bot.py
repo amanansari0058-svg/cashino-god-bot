@@ -1319,7 +1319,6 @@ app.add_handler(CommandHandler("menu", menu))
 app.add_handler(CommandHandler("bal", bal))
 app.add_handler(CommandHandler("daily", daily))
 app.add_handler(CommandHandler("give", give))
-app.add_handler(CommandHandler("taxpool", taxpool_cmd))
 
 app.add_handler(CommandHandler("deposit", deposit))
 app.add_handler(CommandHandler("withdraw", withdraw))
