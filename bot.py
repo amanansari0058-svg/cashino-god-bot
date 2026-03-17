@@ -563,30 +563,44 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     if len(context.args) < 1:
-        return await update.message.reply_text("Usage: /withdraw <amount>")
+        return await update.message.reply_text(
+            "Usage: /withdraw <amount>",
+            reply_to_message_id=update.message.id
+        )
 
     u = get_user(update.effective_user.id)
     amount = int(context.args[0])
 
     if u["bank"] < amount:
-        return await update.message.reply_text("❌ Not enough bank balance")
+        return await update.message.reply_text(
+            "❌ Not enough bank balance",
+            reply_to_message_id=update.message.id
+        )
 
     u["bank"] -= amount
     u["coins"] += amount
-    save_user(update.effective_user.id, u)
-save()
 
-    await update.message.reply_text(f"💰 Withdrawn ${fmt(amount)}")
+    save()
+
+    await update.message.reply_text(
+        f"💰 Withdrawn ${fmt(amount)}",
+        reply_to_message_id=update.message.id
+    )
 
 
 @admin_required
 async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
-    u = get_user(update.effective_user.id)
-    await update.message.reply_text(
-        f"💰 Wallet: ${fmt(u['coins'])}\n🏦 Bank: ${fmt(u['bank'])}"
-    )
 
+    u = get_user(update.effective_user.id)
+
+    coins = int(u.get("coins", 0))
+    bank = int(u.get("bank", 0))
+
+    await update.message.reply_text(
+        f"💰 Cash: ${fmt(coins)}\n🏦 Bank: ${fmt(bank)}",
+        reply_to_message_id=update.message.id
+    )
 
 # =========================
 # ACTIONS
