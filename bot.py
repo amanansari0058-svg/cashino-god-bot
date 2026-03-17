@@ -606,120 +606,31 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # GAMES
 # =========================
 
-async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
+def check_bet(u, bet):
+    try:
+        bet = int(bet)
+    except:
+        return "❌ Invalid bet amount"
 
-    if len(context.args) < 2:
-        return await update.message.reply_text("Usage: /flip <amount> <h/t>")
+    coins = int(u.get("coins", 0))
 
-    u = get_user(update.effective_user.id)
+    if bet <= 0:
+        return "❌ Bet must be greater than 0"
 
-    bet = int(context.args[0])
-    choice = context.args[1].lower()
+    if bet > MAX_BET:
+        return f"😡 Max bet per game: ${fmt(MAX_BET)}"
 
-    if choice not in ["h", "t"]:
-        return await update.message.reply_text("❌ Choose h or t")
+    if coins < bet:
+        return "❌ Not enough coins"
 
-    error = check_bet(u, bet)
-    if error:
-        return await update.message.reply_text(error)
-
-    result = random.choice(["h", "t"])
-
-    msg = await update.message.reply_text("🪙 Flipping coin...")
-
-    if result == "h":
-        frames = ["🪙 T", "🪙 H", "🪙 T", "🪙 H"]
-    else:
-        frames = ["🪙 H", "🪙 T", "🪙 H", "🪙 T"]
-
-    for frame in frames:
-        await asyncio.sleep(0.35)
-        try:
-            await msg.edit_text(frame)
-        except:
-            pass
-
-    if result == choice:
-        u["coins"] += bet
-        text = f"🪙 Result: {result.upper()}\n🎉 Won ${fmt(bet)}"
-    else:
-        u["coins"] -= bet
-        text = f"🪙 Result: {result.upper()}\n💸 Lost ${fmt(bet)}"
-
-    save()
-    await msg.edit_text(text)
+    return None
 
 
-async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
-
-    if len(context.args) < 2:
-        return await update.message.reply_text("Usage: /dice <amount> <1-6>")
-
-    u = get_user(update.effective_user.id)
-
-    bet = int(context.args[0])
-    guess = int(context.args[1])
-
-    if guess < 1 or guess > 6:
-        return await update.message.reply_text("❌ Choose number 1 to 6")
-
-    error = check_bet(u, bet)
-    if error:
-        return await update.message.reply_text(error)
-
-    roll = random.randint(1, 6)
-
-    msg = await update.message.reply_text("🎲 Rolling dice...")
-
-    frames = [1, 3, 5, 2, 6, roll]
-    for num in frames:
-        await asyncio.sleep(0.35)
-        try:
-            await msg.edit_text(f"🎲 {num}")
-        except:
-            pass
-
-    if roll == guess:
-        win = bet * 5
-        u["coins"] += win
-        text = f"🎲 Dice: {roll}\n🎉 Won ${fmt(win)}"
-    else:
-        u["coins"] -= bet
-        text = f"🎲 Dice: {roll}\n💸 Lost ${fmt(bet)}"
-
-    save()
-    await msg.edit_text(text)
-
-
-async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
-
-    if len(context.args) < 2:
-        return await update.message.reply_text("Usage: /roulette <amount> <0-36>")
-
-    u = get_user(update.effective_user.id)
-
-    bet = int(context.args[0])
-    guess = int(context.args[1])
-
-    if guess < 0 or guess > 36:
-        return await update.message.reply_text("❌ Choose number 0 to 36")
-
-    error = check_bet(u, bet)
-    if error:
-        return await update.message.reply_text(error)
-
-# =========================
-# GAMES
-# =========================
-
-def win_message(user, result, pick, amount, multi=1):
+def win_message(user, emoji, result, pick, amount, multi=1):
     return f"""
-✨ 🪙 SAHI! YOU WON!
+✨ {emoji} SAHI! YOU WON!
 ━━━━━━━━━━━━━━━━━━━━━
-🏀 Result: {result}
+{emoji} Result: {result}
 ✅ Tera pick: {pick}
 
 🪙 Jeet: +${fmt(amount)} ({multi}x)
@@ -727,11 +638,12 @@ def win_message(user, result, pick, amount, multi=1):
 👑 Lucky ho <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 🔥
 """
 
-def lose_message(user, result, pick, amount):
+
+def lose_message(user, emoji, result, pick, amount):
     return f"""
-💀 🪙 GALAT! HAARA!
+💀 {emoji} GALAT! HAARA!
 ━━━━━━━━━━━━━━━━━━━━━
-🏀 Result: {result}
+{emoji} Result: {result}
 ❌ Tera pick: {pick}
 
 😔 Nuksan: -${fmt(amount)} coins
@@ -740,8 +652,12 @@ Agli baar sahi lagana
 👑 <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 💸
 """
 
+
+# =========================
+# FLIP
+# =========================
+
 async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
 
     if len(context.args) < 2:
         return await update.message.reply_text(
@@ -754,18 +670,9 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bet = int(context.args[0])
     choice = context.args[1].lower()
 
-    if choice not in ["h", "t"]:
-        return await update.message.reply_text(
-            "❌ Choose h or t",
-            reply_to_message_id=update.message.id
-        )
-
     error = check_bet(u, bet)
     if error:
-        return await update.message.reply_text(
-            error,
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text(error)
 
     shot = await context.bot.send_dice(
         chat_id=update.effective_chat.id,
@@ -774,26 +681,23 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     value = shot.dice.value
-
     await asyncio.sleep(3)
 
-    # 4-5 = Heads / Score
-    # 1-3 = Tails / Miss
     if value >= 4:
         result_key = "h"
-        result_text = "🟡 Heads"
+        result_text = "Heads"
     else:
         result_key = "t"
-        result_text = "⚫ Tails"
+        result_text = "Tails"
 
-    pick_text = "🟡 Heads" if choice == "h" else "⚫ Tails"
+    pick_text = "Heads" if choice == "h" else "Tails"
 
     if result_key == choice:
         u["coins"] += bet
-        text = win_message(update.effective_user, result_text, pick_text, bet, 2)
+        text = win_message(update.effective_user, "🪙", result_text, pick_text, bet, 2)
     else:
         u["coins"] -= bet
-        text = lose_message(update.effective_user, result_text, pick_text, bet)
+        text = lose_message(update.effective_user, "🪙", result_text, pick_text, bet)
 
     save()
 
@@ -804,8 +708,11 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# =========================
+# DICE
+# =========================
+
 async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
 
     if len(context.args) < 2:
         return await update.message.reply_text(
@@ -818,18 +725,9 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bet = int(context.args[0])
     guess = int(context.args[1])
 
-    if guess < 1 or guess > 6:
-        return await update.message.reply_text(
-            "❌ Choose number 1 to 6",
-            reply_to_message_id=update.message.id
-        )
-
     error = check_bet(u, bet)
     if error:
-        return await update.message.reply_text(
-            error,
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text(error)
 
     dice_msg = await context.bot.send_dice(
         chat_id=update.effective_chat.id,
@@ -838,16 +736,15 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     roll = dice_msg.dice.value
-
     await asyncio.sleep(3)
 
     if roll == guess:
         win = bet * 5
         u["coins"] += win
-        text = win_message(update.effective_user, f"🎲 {roll}", f"🎯 {guess}", win, 5)
+        text = win_message(update.effective_user, "🎲", roll, guess, win, 5)
     else:
         u["coins"] -= bet
-        text = lose_message(update.effective_user, f"🎲 {roll}", f"🎯 {guess}", bet)
+        text = lose_message(update.effective_user, "🎲", roll, guess, bet)
 
     save()
 
@@ -858,8 +755,11 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# =========================
+# ROULETTE
+# =========================
+
 async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
 
     if len(context.args) < 2:
         return await update.message.reply_text(
@@ -872,18 +772,9 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bet = int(context.args[0])
     guess = int(context.args[1])
 
-    if guess < 0 or guess > 36:
-        return await update.message.reply_text(
-            "❌ Choose number 0 to 36",
-            reply_to_message_id=update.message.id
-        )
-
     error = check_bet(u, bet)
     if error:
-        return await update.message.reply_text(
-            error,
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text(error)
 
     slot_msg = await context.bot.send_dice(
         chat_id=update.effective_chat.id,
@@ -891,20 +782,18 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
-    slot_value = slot_msg.dice.value
-
+    value = slot_msg.dice.value
     await asyncio.sleep(3)
 
-    # Telegram slot value se roulette number nikalo
-    result = slot_value % 37
+    result = value % 37
 
     if result == guess:
         win = bet * 35
         u["coins"] += win
-        text = win_message(update.effective_user, f"🎡 {result}", f"🎯 {guess}", win, 35)
+        text = win_message(update.effective_user, "🎡", result, guess, win, 35)
     else:
         u["coins"] -= bet
-        text = lose_message(update.effective_user, f"🎡 {result}", f"🎯 {guess}", bet)
+        text = lose_message(update.effective_user, "🎡", result, guess, bet)
 
     save()
 
@@ -915,8 +804,11 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# =========================
+# COLOR
+# =========================
+
 async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
 
     if len(context.args) < 2:
         return await update.message.reply_text(
@@ -929,33 +821,22 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = context.args[0].lower()
     bet = int(context.args[1])
 
-    if choice not in ["red", "green", "violet"]:
-        return await update.message.reply_text(
-            "❌ Choose red, green or violet",
-            reply_to_message_id=update.message.id
-        )
-
     error = check_bet(u, bet)
     if error:
-        return await update.message.reply_text(
-            error,
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text(error)
 
-    dart_msg = await context.bot.send_dice(
+    dart = await context.bot.send_dice(
         chat_id=update.effective_chat.id,
         emoji="🎯",
         reply_to_message_id=update.message.id
     )
 
-    dart_value = dart_msg.dice.value
-
+    value = dart.dice.value
     await asyncio.sleep(3)
 
-    # Animation based color mapping
-    if dart_value in [1, 2]:
+    if value in [1,2]:
         result = "red"
-    elif dart_value in [3, 4]:
+    elif value in [3,4]:
         result = "green"
     else:
         result = "violet"
@@ -969,10 +850,11 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
             multi = 2
 
         u["coins"] += win
-        text = win_message(update.effective_user, result.upper(), choice.upper(), win, multi)
+        text = win_message(update.effective_user, "🎨", result, choice, win, multi)
+
     else:
         u["coins"] -= bet
-        text = lose_message(update.effective_user, result.upper(), choice.upper(), bet)
+        text = lose_message(update.effective_user, "🎨", result, choice, bet)
 
     save()
 
