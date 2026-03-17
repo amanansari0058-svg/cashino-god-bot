@@ -62,21 +62,30 @@ MAX_BET = 1000000
 # DATABASE
 # =========================
 
-try:
-    with open(DB_FILE, "r") as f:
-        data = json.load(f)
-except:
-    data = {"users": {}, "tax_pool": 0}
+DB_FILE = "users.json"
 
-users = data["users"]
-tax_pool = data["tax_pool"]
+def load_data():
+    global data, users, tax_pool
+
+    try:
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except:
+        data = {"users": {}, "tax_pool": 0}
+
+    users = data.get("users", {})
+    tax_pool = int(data.get("tax_pool", 0))
+
+
+load_data()
 
 
 def save():
+    global data
     data["users"] = users
     data["tax_pool"] = tax_pool
-    with open(DB_FILE, "w") as f:
-        json.dump(data, f)
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 
 def get_user(uid):
@@ -84,7 +93,7 @@ def get_user(uid):
 
     if uid not in users:
         users[uid] = {
-            "coins": START_COINS,
+            "coins": 0,
             "bank": 0,
             "kills": 0,
             "last_daily": 0,
@@ -95,6 +104,17 @@ def get_user(uid):
             "name": "User",
         }
         save()
+
+    # old/corrupt values ko int me force karo
+    users[uid]["coins"] = int(users[uid].get("coins", 0))
+    users[uid]["bank"] = int(users[uid].get("bank", 0))
+    users[uid]["kills"] = int(users[uid].get("kills", 0))
+    users[uid]["last_daily"] = float(users[uid].get("last_daily", 0))
+    users[uid]["dead_until"] = float(users[uid].get("dead_until", 0))
+    users[uid]["protected_until"] = float(users[uid].get("protected_until", 0))
+    users[uid]["last_rob"] = float(users[uid].get("last_rob", 0))
+    users[uid]["last_kill"] = float(users[uid].get("last_kill", 0))
+    users[uid]["name"] = str(users[uid].get("name", "User"))
 
     return users[uid]
 
@@ -108,24 +128,34 @@ def update_name_from_update(update: Update):
 
 
 def is_dead(user):
-    return time.time() < user["dead_until"]
+    return time.time() < float(user.get("dead_until", 0))
 
 
 def is_protected(user):
-    return time.time() < user["protected_until"]
+    return time.time() < float(user.get("protected_until", 0))
 
 
 def fmt(x):
-    return f"{x:,}"
+    return f"{int(x):,}"
 
 
 def check_bet(u, bet):
+    try:
+        bet = int(bet)
+    except:
+        return "❌ Invalid bet amount"
+
+    coins = int(u.get("coins", 0))
+
     if bet < MIN_BET:
         return f"❌ Minimum bet is ${fmt(MIN_BET)}"
+
     if bet > MAX_BET:
         return f"❌ Maximum bet is ${fmt(MAX_BET)}"
-    if u["coins"] < bet:
+
+    if coins < bet:
         return "❌ Not enough coins"
+
     return None
 
 # =========================
