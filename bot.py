@@ -448,8 +448,8 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     now = time.time()
 
-    if now - u.get("last_daily", 0) < 86400:
-        remaining = 86400 - (now - u["last_daily"])
+    if now - float(u.get("last_daily", 0)) < 86400:
+        remaining = 86400 - (now - float(u.get("last_daily", 0)))
         hours = int(remaining // 3600)
         minutes = int((remaining % 3600) // 60)
 
@@ -458,15 +458,17 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    u["coins"] += 5000
+    u["coins"] = int(u.get("coins", 0)) + DAILY_REWARD
     u["last_daily"] = now
 
+    save_user(update.effective_user.id, u)
     save()
 
     await update.message.reply_text(
-        "🎁 Daily Claimed! +$5000",
+        f"🎁 Daily Claimed! +${fmt(DAILY_REWARD)}",
         reply_to_message_id=update.message.id
     )
+
 
 @admin_required
 async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
