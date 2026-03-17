@@ -444,9 +444,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
-    user_obj = update.effective_user
-    uid = str(user_obj.id)
+    # 👇 check reply
+    if update.message.reply_to_message:
+        target_user = update.message.reply_to_message.from_user
+    else:
+        target_user = update.effective_user
 
+    uid = str(target_user.id)
     u = get_user(uid)
 
     coins = int(u.get("coins", 0))
@@ -454,14 +458,13 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kills = int(u.get("kills", 0))
     rank = get_user_rank(uid)
 
-    # clickable name
-    name = f"<a href='tg://user?id={uid}'>{html.escape(user_obj.first_name)}</a>"
+    name = f"<a href='tg://user?id={uid}'>{html.escape(target_user.first_name)}</a>"
 
     protect_left = int(float(u.get("protected_until", 0)) - time.time())
-    if protect_left > 0:
-        protect_text = f"{protect_left // 3600}h {(protect_left % 3600) // 60}m left"
-    else:
-        protect_text = "Not active"
+    protect_text = (
+        f"{protect_left // 3600}h {(protect_left % 3600) // 60}m left"
+        if protect_left > 0 else "Not active"
+    )
 
     text = (
         f"👑 {name}\n"
@@ -1147,14 +1150,15 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_required
 async def toprich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    with conn.cursor() as cur:
-        cur.execute("""
-            SELECT uid, name, coins
-            FROM users
-            ORDER BY coins DESC
-            LIMIT 10
-        """)
-        rows = cur.fetchall()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT uid, name, coins
+                FROM users
+                ORDER BY coins DESC
+                LIMIT 10
+            """)
+            rows = cur.fetchall()
 
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
     text = "🏆 GOD WEALTH TOP 10\n━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -1438,16 +1442,17 @@ app.add_handler(CallbackQueryHandler(button))
 print("God Economy Bot started...")
 keep_alive()
 
+print("STARTING POLLING")
+
 async def clear(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
 
 app.post_init = clear
 
-print("STARTING POLLING")
-
-try:
-    app.run_polling(
-        drop_pending_updates=True
-    )
-except Exception as e:
-    print("BOT CRASH:", e)
+# CRASH PROTECTION
+while True:
+    try:
+        app.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        print("CRASH ERROR:", e)
+        time.sleep(5)
