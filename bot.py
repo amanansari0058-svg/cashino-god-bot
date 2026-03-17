@@ -1,6 +1,8 @@
 from flask import Flask
 import threading
 import os
+import psycopg
+from psycopg.rows import dict_row
 
 web = Flask(__name__)
 
@@ -24,7 +26,6 @@ def keep_alive():
 import asyncio
 import random
 import time
-import json
 import html
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -39,10 +40,8 @@ from telegram.ext import (
 # CONFIG
 # =========================
 
-import os
 TOKEN = os.getenv("TOKEN")
 OWNER_ID = 6479017313
-DB_FILE = "users.json"
 
 START_COINS = 0
 DAILY_REWARD = 5000
@@ -63,61 +62,136 @@ MAX_BET = 1000000
 # DATABASE
 # =========================
 
-DB_FILE = "users.json"
+import psycopg
+from psycopg.rows import dict_row
 
-def load_data():
-    global data, users, tax_pool
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-    try:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except:
-        data = {"users": {}, "tax_pool": 0}
-
-    users = data.get("users", {})
-    tax_pool = int(data.get("tax_pool", 0))
+conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
-load_data()
+def init_db():
+    global tax_pool
+
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                uid TEXT PRIMARY KEY,
+                name TEXT DEFAULT 'User',
+                coins BIGINT DEFAULT 0,
+                bank BIGINT DEFAULT 0,
+                kills BIGINT DEFAULT 0,
+                last_daily DOUBLE PRECISION DEFAULT 0,
+                dead_until DOUBLE PRECISION DEFAULT 0,
+                protected_until DOUBLE PRECISION DEFAULT 0,
+                last_rob DOUBLE PRECISION DEFAULT 0,
+                last_kill DOUBLE PRECISION DEFAULT 0
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS bot_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+
+        cur.execute("""
+            INSERT INTO bot_meta (key, value)
+            VALUES ('tax_pool', '0')
+            ON CONFLICT (key) DO NOTHING
+        """)
+
+        conn.commit()
+
+    tax_pool = get_tax_pool()
+
+
+def get_tax_pool():
+    with conn.cursor() as cur:
+        cur.execute("SELECT value FROM bot_meta WHERE key = 'tax_pool'")
+        row = cur.fetchone()
+        return int(row["value"]) if row else 0
+
+
+def set_tax_pool(value):
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO bot_meta (key, value)
+            VALUES ('tax_pool', %s)
+            ON CONFLICT (key)
+            DO UPDATE SET value = EXCLUDED.value
+        """, (str(int(value)),))
+        conn.commit()
 
 
 def save():
-    global data
-    data["users"] = users
-    data["tax_pool"] = tax_pool
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    global tax_pool
+    set_tax_pool(tax_pool)
 
 
 def get_user(uid):
     uid = str(uid)
 
-    if uid not in users:
-        users[uid] = {
-            "coins": 0,
-            "bank": 0,
-            "kills": 0,
-            "last_daily": 0,
-            "dead_until": 0,
-            "protected_until": 0,
-            "last_rob": 0,
-            "last_kill": 0,
-            "name": "User",
-        }
-        save()
+    with conn.cursor() as cur:
+        cur.execute("SELECT * FROM users WHERE uid = %s", (uid,))
+        user = cur.fetchone()
 
-    # old/corrupt values ko int me force karo
-    users[uid]["coins"] = int(users[uid].get("coins", 0))
-    users[uid]["bank"] = int(users[uid].get("bank", 0))
-    users[uid]["kills"] = int(users[uid].get("kills", 0))
-    users[uid]["last_daily"] = float(users[uid].get("last_daily", 0))
-    users[uid]["dead_until"] = float(users[uid].get("dead_until", 0))
-    users[uid]["protected_until"] = float(users[uid].get("protected_until", 0))
-    users[uid]["last_rob"] = float(users[uid].get("last_rob", 0))
-    users[uid]["last_kill"] = float(users[uid].get("last_kill", 0))
-    users[uid]["name"] = str(users[uid].get("name", "User"))
+        if not user:
+            cur.execute("""
+                INSERT INTO users (
+                    uid, name, coins, bank, kills,
+                    last_daily, dead_until, protected_until,
+                    last_rob, last_kill
+                )
+                VALUES (%s, 'User', 0, 0, 0, 0, 0, 0, 0, 0)
+                RETURNING *
+            """, (uid,))
+            user = cur.fetchone()
+            conn.commit()
 
-    return users[uid]
+    user["coins"] = int(user.get("coins", 0))
+    user["bank"] = int(user.get("bank", 0))
+    user["kills"] = int(user.get("kills", 0))
+    user["last_daily"] = float(user.get("last_daily", 0))
+    user["dead_until"] = float(user.get("dead_until", 0))
+    user["protected_until"] = float(user.get("protected_until", 0))
+    user["last_rob"] = float(user.get("last_rob", 0))
+    user["last_kill"] = float(user.get("last_kill", 0))
+    user["name"] = str(user.get("name", "User"))
+
+    return user
+
+
+def save_user(uid, user):
+    uid = str(uid)
+
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE users
+            SET name=%s,
+                coins=%s,
+                bank=%s,
+                kills=%s,
+                last_daily=%s,
+                dead_until=%s,
+                protected_until=%s,
+                last_rob=%s,
+                last_kill=%s
+            WHERE uid=%s
+        """, (
+            user.get("name", "User"),
+            int(user.get("coins", 0)),
+            int(user.get("bank", 0)),
+            int(user.get("kills", 0)),
+            float(user.get("last_daily", 0)),
+            float(user.get("dead_until", 0)),
+            float(user.get("protected_until", 0)),
+            float(user.get("last_rob", 0)),
+            float(user.get("last_kill", 0)),
+            uid
+        ))
+        conn.commit()
 
 
 def update_name_from_update(update: Update):
@@ -125,7 +199,7 @@ def update_name_from_update(update: Update):
     user = get_user(uid)
     if update.effective_user.first_name:
         user["name"] = update.effective_user.first_name
-        save()
+        save_user(uid, user)
 
 
 def is_dead(user):
@@ -158,6 +232,9 @@ def check_bet(u, bet):
         return "❌ Not enough coins"
 
     return None
+
+
+init_db()
 
 # =========================
 # ADMIN CHECK SYSTEM
@@ -393,7 +470,8 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u["coins"] += 5000
     u["last_daily"] = now
 
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         "🎁 Daily Claimed! +$5000",
@@ -424,7 +502,8 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sender["coins"] -= amount
     target["coins"] += send
     tax_pool += tax
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         f"✅ Sent ${fmt(send)}\n💰 Tax: ${fmt(tax)}"
@@ -454,7 +533,8 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     u["coins"] -= amount
     u["bank"] += amount
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(f"🏦 Deposited ${fmt(amount)}")
 
@@ -474,7 +554,8 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     u["bank"] -= amount
     u["coins"] += amount
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(f"💰 Withdrawn ${fmt(amount)}")
 
@@ -539,7 +620,8 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     attacker["kills"] += 1
     attacker["last_kill"] = time.time()
 
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         f"💀 KILL SUCCESS\n\n"
@@ -595,7 +677,8 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     robber["coins"] += steal
     robber["last_rob"] = time.time()
 
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         f"💰 ROB SUCCESS\n\n"
@@ -621,7 +704,8 @@ async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     u["protected_until"] = now + 86400
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         "🛡 Protection activated for 24 hours"
@@ -649,7 +733,8 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user["coins"] -= REVIVE_COST
     user["dead_until"] = 0
 
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         f"❤️ {target_user.first_name} revive ho gaya"
@@ -766,7 +851,8 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u["coins"] -= bet
         text = lose_message(update.effective_user, "🪙", result_text, pick_text, bet)
 
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         text,
@@ -826,7 +912,8 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u["coins"] -= bet
         text = lose_message(update.effective_user, "🎲", str(roll), str(guess), bet)
 
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         text,
@@ -888,7 +975,8 @@ async def roulette(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u["coins"] -= bet
         text = lose_message(update.effective_user, "🎡", str(result), str(guess), bet)
 
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         text,
@@ -962,7 +1050,8 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
         u["coins"] -= bet
         text = lose_message(update.effective_user, "🎨", result, choice, bet)
 
-    save()
+    save_user(update.effective_user.id, u)
+save()
 
     await update.message.reply_text(
         text,
