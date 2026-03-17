@@ -160,28 +160,34 @@ def check_bet(u, bet):
     return None
 
 # =========================
-# GROUP CHECK HELPER
+# ADMIN CHECK SYSTEM
 # =========================
 
-async def ensure_group_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.effective_chat
+def admin_required(func):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    if chat.type in ["group", "supergroup"]:
-        bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
+        chat = update.effective_chat
 
-        if bot_member.status not in ["administrator", "creator"]:
-            await update.message.reply_text(
-                "⚠️ Pehle mujhe group me admin do.\n"
-                "Tabhi main yahan work karunga."
-            )
-            return False
+        if chat.type in ["group", "supergroup"]:
+            bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
 
-    return True
+            if bot_member.status not in ["administrator", "creator"]:
+                await update.message.reply_text(
+                    "⚠️ Pehle mujhe group me admin do.\n"
+                    "Tabhi main yahan work karunga.",
+                    reply_to_message_id=update.message.id
+                )
+                return
+
+        return await func(update, context)
+
+    return wrapper
 
 # =========================
 # START
 # =========================
 
+@admin_required
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
@@ -228,6 +234,7 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 # HELP
 # =========================
 
+@admin_required
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
@@ -262,6 +269,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MENU
 # =========================
 
+@admin_required
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     kb = [
@@ -324,6 +332,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ECONOMY
 # =========================
 
+@admin_required
 async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
@@ -364,6 +373,7 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(txt)
 
 
+@admin_required
 async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     u = get_user(update.effective_user.id)
@@ -391,6 +401,7 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@admin_required
 async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global tax_pool
     update_name_from_update(update)
@@ -428,6 +439,7 @@ async def taxpool_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # BANK
 # =========================
 
+@admin_required
 async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
@@ -447,6 +459,7 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🏦 Deposited ${fmt(amount)}")
 
 
+@admin_required
 async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
@@ -466,6 +479,7 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"💰 Withdrawn ${fmt(amount)}")
 
 
+@admin_required
 async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
     u = get_user(update.effective_user.id)
@@ -478,6 +492,7 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ACTIONS
 # =========================
 
+@admin_required
 async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
@@ -535,6 +550,7 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@admin_required
 async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
@@ -587,6 +603,7 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@admin_required
 async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
     u = get_user(update.effective_user.id)
@@ -611,6 +628,7 @@ async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@admin_required
 async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
