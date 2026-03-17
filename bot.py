@@ -484,14 +484,20 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     if len(context.args) < 2:
-        return await update.message.reply_text("Usage: /give <user_id> <amount>")
+        return await update.message.reply_text(
+            "Usage: /give <user_id> <amount>",
+            reply_to_message_id=update.message.id
+        )
 
     sender = get_user(update.effective_user.id)
     uid = context.args[0]
     amount = int(context.args[1])
 
     if sender["coins"] < amount:
-        return await update.message.reply_text("❌ Not enough coins")
+        return await update.message.reply_text(
+            "❌ Not enough coins",
+            reply_to_message_id=update.message.id
+        )
 
     tax = int(amount * GIVE_TAX)
     send = amount - tax
@@ -501,17 +507,22 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sender["coins"] -= amount
     target["coins"] += send
     tax_pool += tax
-    save_user(update.effective_user.id, u)
-save()
+
+    save_user(update.effective_user.id, sender)
+    save_user(uid, target)
+    save()
 
     await update.message.reply_text(
-        f"✅ Sent ${fmt(send)}\n💰 Tax: ${fmt(tax)}"
+        f"✅ Sent ${fmt(send)}\n💰 Tax: ${fmt(tax)}",
+        reply_to_message_id=update.message.id
     )
 
 
 async def taxpool_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"💰 TAX POOL: ${fmt(tax_pool)}")
-
+    await update.message.reply_text(
+        f"💰 TAX POOL: ${fmt(tax_pool)}",
+        reply_to_message_id=update.message.id
+    )
 
 # =========================
 # BANK
