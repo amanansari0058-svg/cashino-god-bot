@@ -452,7 +452,7 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_required
 async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
+    update_name_from_update(update)
     u = get_user(update.effective_user.id)
 
     now = time.time()
@@ -470,7 +470,7 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u["coins"] += 5000
     u["last_daily"] = now
 
-save()
+    save()
 
     await update.message.reply_text(
         "🎁 Daily Claimed! +$5000",
