@@ -1313,4 +1313,9 @@ app.add_handler(CallbackQueryHandler(button))
 
 print("God Economy Bot started...")
 keep_alive()
+
+async def clear(app):
+    await app.bot.delete_webhook(drop_pending_updates=True)
+
+app.post_init = clear
 app.run_polling(drop_pending_updates=True)
