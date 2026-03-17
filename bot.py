@@ -612,17 +612,24 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not update.message.reply_to_message:
         return await update.message.reply_text(
-            "❌ Kisi user ke message par reply karke /kill use karo."
+            "❌ Kisi user ke message par reply karke /kill use karo.",
+            reply_to_message_id=update.message.id
         )
 
     attacker_user = update.effective_user
     victim_user = update.message.reply_to_message.from_user
 
     if victim_user.is_bot:
-        return await update.message.reply_text("❌ Bot ko kill nahi kar sakte.")
+        return await update.message.reply_text(
+            "❌ Bot ko kill nahi kar sakte.",
+            reply_to_message_id=update.message.id
+        )
 
     if attacker_user.id == victim_user.id:
-        return await update.message.reply_text("❌ Khud ko kill nahi kar sakte.")
+        return await update.message.reply_text(
+            "❌ Khud ko kill nahi kar sakte.",
+            reply_to_message_id=update.message.id
+        )
 
     attacker = get_user(attacker_user.id)
     victim = get_user(victim_user.id)
@@ -631,7 +638,8 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if kill_left > 0:
         return await update.message.reply_text(
-            f"⏳ Kill cooldown active\nTry again in {kill_left}s"
+            f"⏳ Kill cooldown active\nTry again in {kill_left}s",
+            reply_to_message_id=update.message.id
         )
 
     protect_left = int(victim["protected_until"] - time.time())
@@ -644,11 +652,11 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🛡 <a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a> protected hai\n"
             f"❌ Kill block ho gaya\n"
             f"⏳ Protection khatam hogi {hours}h {minutes}m me",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
         )
 
     victim["dead_until"] = time.time() + 86400
-
     attacker["coins"] += KILL_REWARD
     attacker["kills"] += 1
     attacker["last_kill"] = time.time()
@@ -662,9 +670,9 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⚔️ <a href='tg://user?id={attacker_user.id}'>{html.escape(attacker_user.first_name)}</a> ne "
         f"<a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a> ko kill kar diya\n"
         f"💰 Reward: ${fmt(KILL_REWARD)}",
-        parse_mode="HTML"
-    )
-
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
+        )
 
 @admin_required
 async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -672,7 +680,8 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not update.message.reply_to_message:
         return await update.message.reply_text(
-            "❌ Kisi user ke message par reply karke /rob use karo."
+            "❌ Kisi user ke message par reply karke /rob use karo.",
+            reply_to_message_id=update.message.id
         )
 
     robber_user = update.effective_user
@@ -685,7 +694,8 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if rob_left > 0:
         return await update.message.reply_text(
-            f"⏳ Rob cooldown active\nTry again in {rob_left}s"
+            f"⏳ Rob cooldown active\nTry again in {rob_left}s",
+            reply_to_message_id=update.message.id
         )
 
     protect_left = int(target["protected_until"] - time.time())
@@ -697,26 +707,30 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text(
             f"🛡 {target_user.first_name} protected hai\n"
             f"❌ Rob block ho gaya\n"
-            f"⏳ Protection khatam hogi {hours}h {minutes}m me"
+            f"⏳ Protection khatam hogi {hours}h {minutes}m me",
+            reply_to_message_id=update.message.id
         )
 
     steal = int(target["coins"] * ROB_PERCENT)
 
     if steal <= 0:
         return await update.message.reply_text(
-            "❌ Target ke paas lootne layak coins nahi hain."
+            "❌ Target ke paas lootne layak coins nahi hain.",
+            reply_to_message_id=update.message.id
         )
 
     target["coins"] -= steal
     robber["coins"] += steal
     robber["last_rob"] = time.time()
 
-    save_user(update.effective_user.id, u)
-save()
+    save_user(robber_user.id, robber)
+    save_user(target_user.id, target)
+    save()
 
     await update.message.reply_text(
         f"💰 ROB SUCCESS\n\n"
-        f"🕵️ {robber_user.first_name} ne {target_user.first_name} se ${fmt(steal)} loot liye"
+        f"🕵️ {robber_user.first_name} ne {target_user.first_name} se ${fmt(steal)} loot liye",
+        reply_to_message_id=update.message.id
     )
 
 
@@ -734,17 +748,19 @@ async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return await update.message.reply_text(
             f"🛡 Tum already protected ho\n"
-            f"⏳ Protection khatam hogi {hours}h {minutes}m me"
+            f"⏳ Protection khatam hogi {hours}h {minutes}m me",
+            reply_to_message_id=update.message.id
         )
 
     u["protected_until"] = now + 86400
+
     save_user(update.effective_user.id, u)
-save()
+    save()
 
     await update.message.reply_text(
-        "🛡 Protection activated for 24 hours"
+        "🛡 Protection activated for 24 hours",
+        reply_to_message_id=update.message.id
     )
-
 
 @admin_required
 async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -752,26 +768,34 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not update.message.reply_to_message:
         return await update.message.reply_text(
-            "❌ Kisi dead user ke message par reply karke /revive use karo."
+            "❌ Kisi dead user ke message par reply karke /revive use karo.",
+            reply_to_message_id=update.message.id
         )
 
     target_user = update.message.reply_to_message.from_user
     user = get_user(target_user.id)
 
     if not is_dead(user):
-        return await update.message.reply_text("❌ Ye user dead nahi hai")
+        return await update.message.reply_text(
+            "❌ Ye user dead nahi hai",
+            reply_to_message_id=update.message.id
+        )
 
     if user["coins"] < REVIVE_COST:
-        return await update.message.reply_text("❌ Revive ke liye coins nahi hain")
+        return await update.message.reply_text(
+            "❌ Revive ke liye coins nahi hain",
+            reply_to_message_id=update.message.id
+        )
 
     user["coins"] -= REVIVE_COST
     user["dead_until"] = 0
 
-    save_user(update.effective_user.id, u)
-save()
+    save_user(target_user.id, user)
+    save()
 
     await update.message.reply_text(
-        f"❤️ {target_user.first_name} revive ho gaya"
+        f"❤️ {target_user.first_name} revive ho gaya",
+        reply_to_message_id=update.message.id
     )
      
 # =========================
