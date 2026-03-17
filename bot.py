@@ -444,7 +444,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
-    uid = update.effective_user.id
+    user_obj = update.effective_user
+    uid = str(user_obj.id)
+
     u = get_user(uid)
 
     coins = int(u.get("coins", 0))
@@ -452,25 +454,29 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kills = int(u.get("kills", 0))
     rank = get_user_rank(uid)
 
+    # clickable name
+    name = f"<a href='tg://user?id={uid}'>{html.escape(user_obj.first_name)}</a>"
+
     protect_left = int(float(u.get("protected_until", 0)) - time.time())
     if protect_left > 0:
-        protect_text = f"🛡 Protection: {protect_left // 3600}h {(protect_left % 3600) // 60}m left"
+        protect_text = f"{protect_left // 3600}h {(protect_left % 3600) // 60}m left"
     else:
-        protect_text = "🛡 Protection: Not active"
+        protect_text = "Not active"
 
     text = (
-        f"👑 {update.effective_user.first_name}\n"
+        f"👑 {name}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🏆 Rank: #{rank}\n"
         f"🪙 Coins: ${fmt(coins)}\n"
         f"🏦 Bank: ${fmt(bank)}\n"
         f"💀 Kills: {kills}\n"
-        f"{protect_text}\n"
+        f"🏆 Rank: #{rank}\n"
+        f"🛡 Protection: {protect_text}\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
 
     await update.message.reply_text(
         text,
+        parse_mode="HTML",
         reply_to_message_id=update.message.id
     )
 
@@ -1441,8 +1447,7 @@ print("STARTING POLLING")
 
 try:
     app.run_polling(
-        drop_pending_updates=True,
-        allowed_updates=Update.ALL_TYPES
+        drop_pending_updates=True
     )
 except Exception as e:
     print("BOT CRASH:", e)
