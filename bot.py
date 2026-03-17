@@ -412,42 +412,32 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_required
 async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
+    u = get_user(update.effective_user.id)
 
-    if update.message.reply_to_message:
-        target = update.message.reply_to_message.from_user
-        u = get_user(target.id)
-        name = target.first_name
-        uid = str(target.id)
-    else:
-        target = update.effective_user
-        u = get_user(target.id)
-        name = target.first_name
-        uid = str(target.id)
+    coins = int(u.get("coins", 0))
+    bank = int(u.get("bank", 0))
+    kills = int(u.get("kills", 0))
 
-    protect_left = int(u["protected_until"] - time.time())
-
+    protect_left = int(u.get("protected_until", 0) - time.time())
     if protect_left > 0:
-        hours = protect_left // 3600
-        minutes = (protect_left % 3600) // 60
-        protect_text = f"🛡 Protection: Active ({hours}h {minutes}m left)"
+        protect_text = f"🛡 Protection: {protect_left // 3600}h {(protect_left % 3600) // 60}m left"
     else:
         protect_text = "🛡 Protection: Not active"
 
-    sorted_users = sorted(users.items(), key=lambda x: x[1]["coins"], reverse=True)
-    rank = next((i+1 for i,(user_id,_) in enumerate(sorted_users) if user_id == uid), "N/A")
-
-    txt = (
-        f"👑 {name}\n"
+    text = (
+        f"👑 {update.effective_user.first_name}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🪙 Coins: ${fmt(u['coins'])}\n"
-        f"🏦 Bank: ${fmt(u['bank'])}\n"
-        f"💀 Kills: {u['kills']}\n"
-        f"🌍 Global Rank: #{rank}\n"
+        f"🪙 Coins: ${fmt(coins)}\n"
+        f"🏦 Bank: ${fmt(bank)}\n"
+        f"💀 Kills: {kills}\n"
         f"{protect_text}\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
 
-    await update.message.reply_text(txt)
+    await update.message.reply_text(
+        text,
+        reply_to_message_id=update.message.id
+    )
 
 
 @admin_required
@@ -477,7 +467,6 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
-
 @admin_required
 async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global tax_pool
@@ -490,10 +479,16 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     sender = get_user(update.effective_user.id)
-    uid = context.args[0]
+    uid = str(context.args[0])
     amount = int(context.args[1])
 
-    if sender["coins"] < amount:
+    if amount <= 0:
+        return await update.message.reply_text(
+            "❌ Amount must be greater than 0",
+            reply_to_message_id=update.message.id
+        )
+
+    if int(sender.get("coins", 0)) < amount:
         return await update.message.reply_text(
             "❌ Not enough coins",
             reply_to_message_id=update.message.id
@@ -504,8 +499,8 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     target = get_user(uid)
 
-    sender["coins"] -= amount
-    target["coins"] += send
+    sender["coins"] = int(sender.get("coins", 0)) - amount
+    target["coins"] = int(target.get("coins", 0)) + send
     tax_pool += tax
 
     save_user(update.effective_user.id, sender)
@@ -529,7 +524,6 @@ async def taxpool_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 
 @admin_required
-@admin_required
 async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
@@ -542,15 +536,22 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = get_user(update.effective_user.id)
     amount = int(context.args[0])
 
-    if u["coins"] < amount:
+    if amount <= 0:
+        return await update.message.reply_text(
+            "❌ Amount must be greater than 0",
+            reply_to_message_id=update.message.id
+        )
+
+    if int(u.get("coins", 0)) < amount:
         return await update.message.reply_text(
             "❌ Not enough coins",
             reply_to_message_id=update.message.id
         )
 
-    u["coins"] -= amount
-    u["bank"] += amount
+    u["coins"] = int(u.get("coins", 0)) - amount
+    u["bank"] = int(u.get("bank", 0)) + amount
 
+    save_user(update.effective_user.id, u)
     save()
 
     await update.message.reply_text(
@@ -571,15 +572,22 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = get_user(update.effective_user.id)
     amount = int(context.args[0])
 
-    if u["bank"] < amount:
+    if amount <= 0:
+        return await update.message.reply_text(
+            "❌ Amount must be greater than 0",
+            reply_to_message_id=update.message.id
+        )
+
+    if int(u.get("bank", 0)) < amount:
         return await update.message.reply_text(
             "❌ Not enough bank balance",
             reply_to_message_id=update.message.id
         )
 
-    u["bank"] -= amount
-    u["coins"] += amount
+    u["bank"] = int(u.get("bank", 0)) - amount
+    u["coins"] = int(u.get("coins", 0)) + amount
 
+    save_user(update.effective_user.id, u)
     save()
 
     await update.message.reply_text(
@@ -587,18 +595,16 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
-
 @admin_required
 async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
-
     u = get_user(update.effective_user.id)
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
 
     await update.message.reply_text(
-        f"💰 Cash: ${fmt(coins)}\n🏦 Bank: ${fmt(bank)}",
+        f"💰 Wallet: ${fmt(coins)}\n🏦 Bank: ${fmt(bank)}",
         reply_to_message_id=update.message.id
     )
 
@@ -634,7 +640,7 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     attacker = get_user(attacker_user.id)
     victim = get_user(victim_user.id)
 
-    kill_left = int(KILL_COOLDOWN - (time.time() - attacker["last_kill"]))
+    kill_left = int(KILL_COOLDOWN - (time.time() - float(attacker.get("last_kill", 0))))
 
     if kill_left > 0:
         return await update.message.reply_text(
@@ -642,7 +648,7 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    protect_left = int(victim["protected_until"] - time.time())
+    protect_left = int(float(victim.get("protected_until", 0)) - time.time())
 
     if protect_left > 0:
         hours = protect_left // 3600
@@ -657,8 +663,8 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     victim["dead_until"] = time.time() + 86400
-    attacker["coins"] += KILL_REWARD
-    attacker["kills"] += 1
+    attacker["coins"] = int(attacker.get("coins", 0)) + KILL_REWARD
+    attacker["kills"] = int(attacker.get("kills", 0)) + 1
     attacker["last_kill"] = time.time()
 
     save_user(attacker_user.id, attacker)
@@ -672,7 +678,11 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💰 Reward: ${fmt(KILL_REWARD)}",
         parse_mode="HTML",
         reply_to_message_id=update.message.id
-        )
+    )
+
+
+        return await update.message.reply_text(
+        
 
 @admin_required
 async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -690,7 +700,7 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     robber = get_user(robber_user.id)
     target = get_user(target_user.id)
 
-    rob_left = int(ROB_COOLDOWN - (time.time() - robber["last_rob"]))
+    rob_left = int(ROB_COOLDOWN - (time.time() - float(robber.get("last_rob", 0))))
 
     if rob_left > 0:
         return await update.message.reply_text(
@@ -698,7 +708,7 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    protect_left = int(target["protected_until"] - time.time())
+    protect_left = int(float(target.get("protected_until", 0)) - time.time())
 
     if protect_left > 0:
         hours = protect_left // 3600
@@ -711,7 +721,7 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    steal = int(target["coins"] * ROB_PERCENT)
+    steal = int(int(target.get("coins", 0)) * ROB_PERCENT)
 
     if steal <= 0:
         return await update.message.reply_text(
@@ -719,8 +729,8 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    target["coins"] -= steal
-    robber["coins"] += steal
+    target["coins"] = int(target.get("coins", 0)) - steal
+    robber["coins"] = int(robber.get("coins", 0)) + steal
     robber["last_rob"] = time.time()
 
     save_user(robber_user.id, robber)
@@ -733,14 +743,13 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
-
 @admin_required
 async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
     u = get_user(update.effective_user.id)
 
     now = time.time()
-    protect_left = int(u["protected_until"] - now)
+    protect_left = int(float(u.get("protected_until", 0)) - now)
 
     if protect_left > 0:
         hours = protect_left // 3600
@@ -781,13 +790,13 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    if user["coins"] < REVIVE_COST:
+    if int(user.get("coins", 0)) < REVIVE_COST:
         return await update.message.reply_text(
             "❌ Revive ke liye coins nahi hain",
             reply_to_message_id=update.message.id
         )
 
-    user["coins"] -= REVIVE_COST
+    user["coins"] = int(user.get("coins", 0)) - REVIVE_COST
     user["dead_until"] = 0
 
     save_user(target_user.id, user)
@@ -1073,36 +1082,40 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-
 # =========================
 # LEADERBOARD
 # =========================
 
+@admin_required
 async def toprich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    sorted_users = sorted(
-        users.items(),
-        key=lambda x: x[1]["coins"],
-        reverse=True
-    )[:10]
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT uid, name, coins
+            FROM users
+            ORDER BY coins DESC
+            LIMIT 10
+        """)
+        rows = cur.fetchall()
 
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
-
     text = "🏆 GOD WEALTH TOP 10\n━━━━━━━━━━━━━━━━━━━━━\n\n"
 
-    for i, (uid, data) in enumerate(sorted_users):
-        try:
-            chat = await context.bot.get_chat(uid)
-            name = html.escape(chat.first_name or data.get("name", "User"))
-        except:
-            name = html.escape(data.get("name", "User"))
+    for i, row in enumerate(rows):
+        uid = row["uid"]
+        name = html.escape(str(row.get("name", "User")))
+        coins = int(row.get("coins", 0))
+        text += f"{medals[i]} <a href='tg://user?id={uid}'>{name}</a> — ${fmt(coins)}\n"
 
-        text += f"{medals[i]} <a href='tg://user?id={uid}'>{name}</a> — ${fmt(data['coins'])}\n"
+    await update.message.reply_text(
+        text,
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
+    )
 
-    await update.message.reply_text(text, parse_mode="HTML")
-
-
+@admin_required
 async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await toprich(update, context)
+
 
 # =========================
 # ADMIN
