@@ -8,12 +8,12 @@ web = Flask(__name__)
 
 @web.route("/")
 def home():
-    return "Bot is alive"
+    return "Bot is alive", 200
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
     print(f"Starting Flask on port {port}")
-    web.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+    web.run(host="0.0.0.0", port=port, debug=False, use_reloader=False, threaded=True)
 
 def keep_alive():
     t = threading.Thread(target=run_web)
@@ -1313,9 +1313,4 @@ app.add_handler(CallbackQueryHandler(button))
 
 print("God Economy Bot started...")
 keep_alive()
-
-async def clear():
-    await app.bot.delete_webhook(drop_pending_updates=True)
-
-app.post_init = clear
 app.run_polling(drop_pending_updates=True)
