@@ -1273,7 +1273,11 @@ async def userinfo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # APP START
 # =========================
 
+print("TOKEN FOUND:", bool(TOKEN))
+
 app = ApplicationBuilder().token(TOKEN).build()
+
+print("APP BUILT")
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_cmd))
@@ -1318,4 +1322,6 @@ async def clear(app):
     await app.bot.delete_webhook(drop_pending_updates=True)
 
 app.post_init = clear
+
+print("STARTING POLLING")
 app.run_polling(drop_pending_updates=True)
