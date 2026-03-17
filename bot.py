@@ -12,7 +12,8 @@ def home():
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
-    web.run(host="0.0.0.0", port=port)
+    print(f"Starting Flask on port {port}")
+    web.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 def keep_alive():
     t = threading.Thread(target=run_web)
