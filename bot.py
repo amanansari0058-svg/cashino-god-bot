@@ -37,6 +37,8 @@ from telegram.ext import (
     ContextTypes,
 )
 
+user_locks = {}
+
 # =========================
 # CONFIG
 # =========================
@@ -999,86 +1001,85 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     uid = update.effective_user.id
-    u = get_user(uid)
 
-    try:
-        bet = int(context.args[0])
-    except:
-        return await update.message.reply_text(
-            "❌ Invalid amount",
+    # ✅ per-user lock
+    if uid not in user_locks:
+        user_locks[uid] = asyncio.Lock()
+
+    if user_locks[uid].locked():
+        return  # ❌ ignore spam
+
+    async with user_locks[uid]:
+
+        u = get_user(uid)
+
+        try:
+            bet = int(context.args[0])
+        except:
+            return await update.message.reply_text(
+                "❌ Invalid amount",
+                reply_to_message_id=update.message.id
+            )
+
+        choice = context.args[1].lower()
+        if choice not in ["h", "t"]:
+            return await update.message.reply_text(
+                "❌ Choose h or t",
+                reply_to_message_id=update.message.id
+            )
+
+        user_name = html.escape(update.effective_user.first_name)
+        choice_text = "Heads" if choice == "h" else "Tails"
+
+        error = check_bet(u, bet)
+        if error:
+            return await update.message.reply_text(
+                error,
+                reply_to_message_id=update.message.id
+            )
+
+        # ✅ cooldown
+        now = time.time()
+        if now - float(u.get("last_flip", 0)) < 5:
+            return
+
+        u["last_flip"] = now
+        save_user(uid, u)
+
+        print(f"FLIP LOG | name={user_name} | bet=${fmt(bet)} | pick={choice_text}")
+
+        shot = await context.bot.send_dice(
+            chat_id=update.effective_chat.id,
+            emoji="🏀",
             reply_to_message_id=update.message.id
         )
 
-    choice = context.args[1].lower()
-    if choice not in ["h", "t"]:
-        return await update.message.reply_text(
-            "❌ Choose h or t",
+        value = shot.dice.value
+        await asyncio.sleep(3)
+
+        if value >= 4:
+            result_key = "h"
+            result_text = "Heads"
+        else:
+            result_key = "t"
+            result_text = "Tails"
+
+        if result_key == choice:
+            win = bet * 2
+            u["coins"] += win
+            text = win_message(update.effective_user, "🪙", result_text, choice_text, win)
+        else:
+            u["coins"] -= bet
+            text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
+
+        save_user(uid, u)
+        save()
+
+        await update.message.reply_text(
+            text,
+            parse_mode="HTML",
             reply_to_message_id=update.message.id
         )
-
-    user_name = html.escape(update.effective_user.first_name)
-    choice_text = "Heads" if choice == "h" else "Tails"
-
-    error = check_bet(u, bet)
-    if error:
-        return await update.message.reply_text(
-            error,
-            reply_to_message_id=update.message.id
-        )
-
-    # ✅ 5 sec silent cooldown
-    now = time.time()
-    last_flip = float(u.get("last_flip", 0))
-
-    if now - last_flip < 5:
-        return
-
-    # ✅ IMPORTANT: cooldown turant save karo
-    u["last_flip"] = now
-    save_user(uid, u)
-
-    print(f"FLIP LOG | name={user_name} | bet=${fmt(bet)} | pick={choice_text}")
-
-    shot = await context.bot.send_dice(
-        chat_id=update.effective_chat.id,
-        emoji="🏀",
-        reply_to_message_id=update.message.id
-    )
-
-    value = shot.dice.value
-    await asyncio.sleep(3)
-
-    if value >= 4:
-        result_key = "h"
-        result_text = "Heads"
-    else:
-        result_key = "t"
-        result_text = "Tails"
-
-    if result_key == choice:
-        win = bet * 2
-        u["coins"] = int(u.get("coins", 0)) + win
-        text = win_message(update.effective_user, "🪙", result_text, choice_text, win)
-
-        print(
-            f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=WIN | payout=${fmt(win)}"
-        )
-    else:
-        u["coins"] = int(u.get("coins", 0)) - bet
-        text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
-
-        print(
-            f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=LOSE | loss=${fmt(bet)}"
-        )
-
-    save_user(uid, u)
-    save()
-
-    await update.message.reply_text(
-        text,
-        parse_mode="HTML",
-        reply_to_message_id=update.message.id
-    )
 
 
 @admin_required
