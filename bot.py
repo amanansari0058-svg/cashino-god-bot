@@ -34,7 +34,9 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     CallbackQueryHandler,
+    MessageHandler,
     ContextTypes,
+    filters,
 )
 
 user_locks = {}
@@ -94,20 +96,25 @@ def init_db():
                     last_rob DOUBLE PRECISION DEFAULT 0,
                     last_kill DOUBLE PRECISION DEFAULT 0,
                     last_bank_tax DOUBLE PRECISION DEFAULT 0,
-                    last_flip DOUBLE PRECISION DEFAULT 0
+                    last_flip DOUBLE PRECISION DEFAULT 0,
+                    is_banned BOOLEAN DEFAULT FALSE
                 )
             """)
 
-            # 🔥 OLD USERS KE LIYE (IMPORTANT)
+            # OLD USERS KE LIYE
             cur.execute("""
                 ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS last_bank_tax DOUBLE PRECISION DEFAULT 0
             """)
 
-            # 🔥 NEW (FLIP COOLDOWN SAVE)
             cur.execute("""
                 ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS last_flip DOUBLE PRECISION DEFAULT 0
+            """)
+
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE
             """)
 
             cur.execute("""
@@ -126,7 +133,6 @@ def init_db():
         conn.commit()
 
     tax_pool = get_tax_pool()
-
 
 def get_tax_pool():
     with get_conn() as conn:
@@ -183,6 +189,7 @@ def get_user(uid):
     user["last_kill"] = float(user.get("last_kill", 0))
     user["last_bank_tax"] = float(user.get("last_bank_tax", 0))
     user["last_flip"] = float(user.get("last_flip", 0))  # 🔥 NEW
+    user["is_banned"] = bool(user.get("is_banned", False))
     user["name"] = str(user.get("name", "User"))
 
     return user
@@ -204,7 +211,8 @@ def save_user(uid, user):
                     last_rob=%s,
                     last_kill=%s,
                     last_bank_tax=%s,
-                    last_flip=%s
+                    last_flip=%s,
+                    is_banned=%s
                 WHERE uid=%s
             """, (
                 user.get("name", "User"),
@@ -217,7 +225,8 @@ def save_user(uid, user):
                 float(user.get("last_rob", 0)),
                 float(user.get("last_kill", 0)),
                 float(user.get("last_bank_tax", 0)),
-                float(user.get("last_flip", 0)),  # 🔥 NEW
+                float(user.get("last_flip", 0)),
+                bool(user.get("is_banned", False)),
                 uid
             ))
         conn.commit()
@@ -290,13 +299,22 @@ MIN_GROUP_MEMBERS = 25
 def admin_required(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+        user_id = update.effective_user.id
         chat = update.effective_chat
 
-        # ❌ DM BLOCK
-        if chat.type == "private":
+        # 🔥 BANNED USER CHECK
+        user = get_user(user_id)
+        if user.get("is_banned", False):
             return await update.message.reply_text(
-                "❌ Ye bot sirf groups me work karta hai"
+                "❌ You are banned from using this bot"
             )
+
+        # ❌ DM me sirf owner allow
+        if chat.type == "private":
+            if user_id != OWNER_ID:
+                return await update.message.reply_text(
+                    "❌ Bot DM me sirf owner ke liye hai"
+                )
 
         # ✅ Group checks
         if chat.type in ["group", "supergroup"]:
@@ -1317,219 +1335,306 @@ async def toprich(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await toprich(update, context)
 
+
 # =========================
-# ADMIN
+# OWNER PREMIUM PANEL
 # =========================
 
 def is_owner(update: Update):
     return update.effective_user.id == OWNER_ID
 
 
-async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def admin_search_users(query: str, limit: int = 10):
+    query = query.strip()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if query.isdigit():
+                cur.execute("""
+                    SELECT uid, name, coins, bank
+                    FROM users
+                    WHERE uid = %s
+                    LIMIT %s
+                """, (query, limit))
+                rows = cur.fetchall()
+                if rows:
+                    return rows
+
+            cur.execute("""
+                SELECT uid, name, coins, bank
+                FROM users
+                WHERE name ILIKE %s
+                ORDER BY coins DESC
+                LIMIT %s
+            """, (f"%{query}%", limit))
+            return cur.fetchall()
+
+@admin_required
+async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
         return await update.message.reply_text("❌ Owner only command")
 
-    text = """
-👑 ADMIN PANEL (Reply Based)
-
-/setcoins <amount>
-/addcoins <amount>
-/resetuser
-/setbank <amount>
-/addbank <amount>
-/userinfo
-
-👉 User ke message pe reply karke use karo
-"""
-
-    await update.message.reply_text(text)
-
-
-def get_target_user(update):
-    if not update.message.reply_to_message:
-        return None
-    return update.message.reply_to_message.from_user
-
-
-# -------------------------
-# SET COINS
-# -------------------------
-async def setcoins(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update):
-        return await update.message.reply_text("❌ Owner only command")
-
-    target = get_target_user(update)
-    if not target:
-        return await update.message.reply_text("❌ Reply to user")
-
-    if len(context.args) < 1:
-        return await update.message.reply_text("Usage: /setcoins <amount>")
-
-    uid = str(target.id)
-    amount = int(context.args[0])
-
-    user = get_user(uid)
-    user["coins"] = amount
-
-    save_user(uid, user)
-    save()
+    keyboard = [
+        [
+            InlineKeyboardButton("Set Coins", callback_data="admin:setcoins"),
+            InlineKeyboardButton("Add Coins", callback_data="admin:addcoins"),
+        ],
+        [
+            InlineKeyboardButton("Set Bank", callback_data="admin:setbank"),
+            InlineKeyboardButton("Add Bank", callback_data="admin:addbank"),
+        ],
+        [
+            InlineKeyboardButton("Reset User", callback_data="admin:resetuser"),
+            InlineKeyboardButton("User Info", callback_data="admin:userinfo"),
+        ],
+        [
+            InlineKeyboardButton("Ban User", callback_data="admin:banuser"),
+            InlineKeyboardButton("Unban User", callback_data="admin:unbanuser"),
+        ],
+        [
+            InlineKeyboardButton("Reset All Coins", callback_data="admin:resetallcoins"),
+        ],
+        [
+            InlineKeyboardButton("Close", callback_data="admin:close"),
+        ]
+    ]
 
     await update.message.reply_text(
-        f"✅ Coins set to ${fmt(amount)} for <a href='tg://user?id={uid}'>{target.first_name}</a>",
-        parse_mode="HTML"
+        "👑 OWNER PANEL\n\nChoose an action:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
-# -------------------------
-# ADD COINS
-# -------------------------
-async def addcoins(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update):
-        return await update.message.reply_text("❌ Owner only command")
+async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    target = get_target_user(update)
-    if not target:
-        return await update.message.reply_text("❌ Reply to user")
+    if query.from_user.id != OWNER_ID:
+        return await query.message.reply_text("❌ Owner only")
 
-    if len(context.args) < 1:
-        return await update.message.reply_text("Usage: /addcoins <amount>")
+    data = query.data
 
-    uid = str(target.id)
-    amount = int(context.args[0])
+    if data == "admin:close":
+        context.user_data.pop("admin_action", None)
+        context.user_data.pop("admin_selected_uid", None)
+        context.user_data.pop("admin_step", None)
+        return await query.edit_message_text("❌ Panel closed")
 
-    user = get_user(uid)
-    user["coins"] = int(user.get("coins", 0)) + amount
+    if data == "admin:resetallcoins":
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE users SET coins = 0")
+            conn.commit()
 
-    save_user(uid, user)
-    save()
+        context.user_data.pop("admin_action", None)
+        context.user_data.pop("admin_selected_uid", None)
+        context.user_data.pop("admin_step", None)
 
-    await update.message.reply_text(
-        f"✅ Added ${fmt(amount)} to <a href='tg://user?id={uid}'>{target.first_name}</a>",
-        parse_mode="HTML"
-    )
+        return await query.edit_message_text("✅ Sabke coins reset ho gaye")
+
+    if data.startswith("admin:setcoins"):
+        context.user_data["admin_action"] = "setcoins"
+        context.user_data["admin_step"] = "search_user"
+        return await query.edit_message_text("Send user name or user id to search for Set Coins")
+
+    if data.startswith("admin:addcoins"):
+        context.user_data["admin_action"] = "addcoins"
+        context.user_data["admin_step"] = "search_user"
+        return await query.edit_message_text("Send user name or user id to search for Add Coins")
+
+    if data.startswith("admin:setbank"):
+        context.user_data["admin_action"] = "setbank"
+        context.user_data["admin_step"] = "search_user"
+        return await query.edit_message_text("Send user name or user id to search for Set Bank")
+
+    if data.startswith("admin:addbank"):
+        context.user_data["admin_action"] = "addbank"
+        context.user_data["admin_step"] = "search_user"
+        return await query.edit_message_text("Send user name or user id to search for Add Bank")
+
+    if data.startswith("admin:resetuser"):
+        context.user_data["admin_action"] = "resetuser"
+        context.user_data["admin_step"] = "search_user"
+        return await query.edit_message_text("Send user name or user id to search for Reset User")
+
+    if data.startswith("admin:userinfo"):
+        context.user_data["admin_action"] = "userinfo"
+        context.user_data["admin_step"] = "search_user"
+        return await query.edit_message_text("Send user name or user id to search for User Info")
+
+    if data.startswith("admin:banuser"):
+        context.user_data["admin_action"] = "banuser"
+        context.user_data["admin_step"] = "search_user"
+        return await query.edit_message_text("Send user name or user id to search for Ban User")
+
+    if data.startswith("admin:unbanuser"):
+        context.user_data["admin_action"] = "unbanuser"
+        context.user_data["admin_step"] = "search_user"
+        return await query.edit_message_text("Send user name or user id to search for Unban User")
+
+    if data.startswith("admin:pick:"):
+        uid = data.split(":", 2)[2]
+        context.user_data["admin_selected_uid"] = uid
+        action = context.user_data.get("admin_action")
+
+        user = get_user(uid)
+        name = html.escape(user.get("name", "User"))
+
+        if action == "userinfo":
+            protect_left = int(float(user.get("protected_until", 0)) - time.time())
+            dead_left = int(float(user.get("dead_until", 0)) - time.time())
+
+            protect_text = f"{protect_left//3600}h {(protect_left%3600)//60}m left" if protect_left > 0 else "Not active"
+            dead_text = f"{dead_left//3600}h {(dead_left%3600)//60}m left" if dead_left > 0 else "Not dead"
+            ban_text = "Yes" if user.get("is_banned", False) else "No"
+
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
+
+            return await query.edit_message_text(
+                f"👤 {name}\n"
+                f"🆔 {uid}\n"
+                f"🪙 Coins: ${fmt(user['coins'])}\n"
+                f"🏦 Bank: ${fmt(user['bank'])}\n"
+                f"💀 Kills: {user['kills']}\n"
+                f"🛡 Protection: {protect_text}\n"
+                f"☠️ Dead: {dead_text}\n"
+                f"🚫 Banned: {ban_text}"
+            )
+
+        if action == "resetuser":
+            user["coins"] = 0
+            user["bank"] = 0
+            user["kills"] = 0
+            user["last_daily"] = 0
+            user["dead_until"] = 0
+            user["protected_until"] = 0
+            user["last_rob"] = 0
+            user["last_kill"] = 0
+            user["last_bank_tax"] = 0
+            user["last_flip"] = 0
+
+            save_user(uid, user)
+            save()
+
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
+
+            return await query.edit_message_text(f"✅ Reset done for {name}")
+
+        if action == "banuser":
+            user["is_banned"] = True
+            save_user(uid, user)
+            save()
+
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
+
+            return await query.edit_message_text(f"🚫 {name} banned permanently")
+
+        if action == "unbanuser":
+            user["is_banned"] = False
+            save_user(uid, user)
+            save()
+
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
+
+            return await query.edit_message_text(f"✅ {name} unbanned")
+
+        context.user_data["admin_step"] = "enter_amount"
+        return await query.edit_message_text(
+            f"Selected user: {name}\n"
+            f"UID: {uid}\n\n"
+            f"Now send amount"
+        )
 
 
-# -------------------------
-# RESET USER
-# -------------------------
-async def resetuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update):
-        return await update.message.reply_text("❌ Owner only command")
+async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        return
 
-    target = get_target_user(update)
-    if not target:
-        return await update.message.reply_text("❌ Reply to user")
+    if update.effective_chat.type != "private":
+        return
 
-    uid = str(target.id)
-    user = get_user(uid)
+    step = context.user_data.get("admin_step")
+    action = context.user_data.get("admin_action")
 
-    user["coins"] = 0
-    user["bank"] = 0
-    user["kills"] = 0
-    user["last_daily"] = 0
-    user["dead_until"] = 0
-    user["protected_until"] = 0
-    user["last_rob"] = 0
-    user["last_kill"] = 0
-    user["last_bank_tax"] = 0
+    if not step or not action:
+        return
 
-    save_user(uid, user)
-    save()
+    if step == "search_user":
+        search = update.message.text.strip()
+        rows = admin_search_users(search)
 
-    await update.message.reply_text(
-        f"✅ Reset done for <a href='tg://user?id={uid}'>{target.first_name}</a>",
-        parse_mode="HTML"
-    )
+        if not rows:
+            return await update.message.reply_text("❌ No user found")
 
+        keyboard = []
+        for row in rows:
+            uid = str(row["uid"])
+            name = html.escape(str(row.get("name", "User")))
+            coins = int(row.get("coins", 0))
+            bank = int(row.get("bank", 0))
 
-# -------------------------
-# SET BANK
-# -------------------------
-async def setbank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update):
-        return await update.message.reply_text("❌ Owner only command")
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"{name} | ${fmt(coins)} | 🏦 ${fmt(bank)}",
+                    callback_data=f"admin:pick:{uid}"
+                )
+            ])
 
-    target = get_target_user(update)
-    if not target:
-        return await update.message.reply_text("❌ Reply to user")
+        return await update.message.reply_text(
+            "Select user:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
-    if len(context.args) < 1:
-        return await update.message.reply_text("Usage: /setbank <amount>")
+    if step == "enter_amount":
+        uid = context.user_data.get("admin_selected_uid")
+        if not uid:
+            context.user_data.pop("admin_step", None)
+            return await update.message.reply_text("❌ No user selected")
 
-    uid = str(target.id)
-    amount = int(context.args[0])
+        try:
+            amount = int(update.message.text.strip())
+        except:
+            return await update.message.reply_text("❌ Invalid amount")
 
-    user = get_user(uid)
-    user["bank"] = amount
+        user = get_user(uid)
+        name = html.escape(user.get("name", "User"))
 
-    save_user(uid, user)
-    save()
+        if action == "setcoins":
+            user["coins"] = amount
+            save_user(uid, user)
+            save()
+            msg = f"✅ Coins set to ${fmt(amount)} for {name}"
 
-    await update.message.reply_text(
-        f"✅ Bank set to ${fmt(amount)} for <a href='tg://user?id={uid}'>{target.first_name}</a>",
-        parse_mode="HTML"
-    )
+        elif action == "addcoins":
+            user["coins"] = int(user.get("coins", 0)) + amount
+            save_user(uid, user)
+            save()
+            msg = f"✅ Added ${fmt(amount)} coins to {name}"
 
+        elif action == "setbank":
+            user["bank"] = amount
+            save_user(uid, user)
+            save()
+            msg = f"✅ Bank set to ${fmt(amount)} for {name}"
 
-# -------------------------
-# ADD BANK
-# -------------------------
-async def addbank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update):
-        return await update.message.reply_text("❌ Owner only command")
+        elif action == "addbank":
+            user["bank"] = int(user.get("bank", 0)) + amount
+            save_user(uid, user)
+            save()
+            msg = f"✅ Added ${fmt(amount)} bank to {name}"
 
-    target = get_target_user(update)
-    if not target:
-        return await update.message.reply_text("❌ Reply to user")
+        else:
+            msg = "❌ Unknown action"
 
-    if len(context.args) < 1:
-        return await update.message.reply_text("Usage: /addbank <amount>")
+        context.user_data.pop("admin_step", None)
+        context.user_data.pop("admin_action", None)
+        context.user_data.pop("admin_selected_uid", None)
 
-    uid = str(target.id)
-    amount = int(context.args[0])
-
-    user = get_user(uid)
-    user["bank"] = int(user.get("bank", 0)) + amount
-
-    save_user(uid, user)
-    save()
-
-    await update.message.reply_text(
-        f"✅ Added ${fmt(amount)} to bank of <a href='tg://user?id={uid}'>{target.first_name}</a>",
-        parse_mode="HTML"
-    )
-
-
-# -------------------------
-# USER INFO
-# -------------------------
-async def userinfo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update):
-        return await update.message.reply_text("❌ Owner only command")
-
-    target = get_target_user(update)
-    if not target:
-        return await update.message.reply_text("❌ Reply to user")
-
-    uid = str(target.id)
-    user = get_user(uid)
-
-    protect_left = int(float(user.get("protected_until", 0)) - time.time())
-    dead_left = int(float(user.get("dead_until", 0)) - time.time())
-
-    protect_text = f"{protect_left//3600}h {(protect_left%3600)//60}m left" if protect_left > 0 else "Not active"
-    dead_text = f"{dead_left//3600}h {(dead_left%3600)//60}m left" if dead_left > 0 else "Not dead"
-
-    text = (
-        f"👤 <a href='tg://user?id={uid}'>{target.first_name}</a>\n"
-        f"🪙 Coins: ${fmt(user['coins'])}\n"
-        f"🏦 Bank: ${fmt(user['bank'])}\n"
-        f"💀 Kills: {user['kills']}\n"
-        f"🛡 Protection: {protect_text}\n"
-        f"☠️ Dead: {dead_text}"
-    )
-
-    await update.message.reply_text(text, parse_mode="HTML")
+        return await update.message.reply_text(msg)
 
 
 # =========================
@@ -1567,15 +1672,15 @@ app.add_handler(CommandHandler("color", color))
 app.add_handler(CommandHandler("top", top))
 app.add_handler(CommandHandler("toprich", toprich))
 
-app.add_handler(CommandHandler("admin", admin))
-app.add_handler(CommandHandler("setcoins", setcoins))
-app.add_handler(CommandHandler("addcoins", addcoins))
-app.add_handler(CommandHandler("resetuser", resetuser))
-app.add_handler(CommandHandler("setbank", setbank))
-app.add_handler(CommandHandler("addbank", addbank))
-app.add_handler(CommandHandler("userinfo", userinfo))
+# NEW OWNER PANEL
+app.add_handler(CommandHandler("panel", panel))
+app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin:"))
 
+# OLD NORMAL BUTTON CALLBACK
 app.add_handler(CallbackQueryHandler(button))
+
+# ALWAYS LAST
+app.add_handler(MessageHandler(filters.TEXT & ~filters.Command, admin_panel_text))
 
 print("God Economy Bot started...")
 keep_alive()
