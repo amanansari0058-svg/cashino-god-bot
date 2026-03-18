@@ -1004,19 +1004,17 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     uid = update.effective_user.id
 
-    # same time pe ek hi flip chale
+    # Agar abhi flip chal raha hai to ignore
     if uid in flip_busy:
         return
 
+    # 5 sec cooldown after previous completed flip
     now = time.time()
     last = flip_cooldown.get(uid, 0)
-
-    # 5 sec tak naya flip ignore
     if now - last < 5:
         return
 
     flip_busy.add(uid)
-    flip_cooldown[uid] = now
 
     try:
         u = get_user(uid)
@@ -1090,8 +1088,9 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     finally:
+        # Cooldown END pe set hoga, start pe nahi
+        flip_cooldown[uid] = time.time()
         flip_busy.discard(uid)
-
 
 @admin_required
 async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
