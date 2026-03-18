@@ -1680,7 +1680,7 @@ app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin:"))
 app.add_handler(CallbackQueryHandler(button))
 
 # ALWAYS LAST
-app.add_handler(MessageHandler(filters.TEXT & ~filters.Command, admin_panel_text))
+app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), admin_panel_text))
 
 print("God Economy Bot started...")
 keep_alive()
