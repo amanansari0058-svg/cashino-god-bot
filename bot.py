@@ -176,7 +176,6 @@ def get_user(uid):
 
     return user
 
-
 def save_user(uid, user):
     uid = str(uid)
 
@@ -192,7 +191,8 @@ def save_user(uid, user):
                     dead_until=%s,
                     protected_until=%s,
                     last_rob=%s,
-                    last_kill=%s
+                    last_kill=%s,
+                    last_bank_tax=%s
                 WHERE uid=%s
             """, (
                 user.get("name", "User"),
@@ -204,6 +204,7 @@ def save_user(uid, user):
                 float(user.get("protected_until", 0)),
                 float(user.get("last_rob", 0)),
                 float(user.get("last_kill", 0)),
+                float(user.get("last_bank_tax", 0)),
                 uid
             ))
         conn.commit()
@@ -581,14 +582,18 @@ BANK_TAX_TIME = 86400  # 1 day
 
 def apply_bank_tax(uid, user):
     now = time.time()
-
     last_tax = float(user.get("last_bank_tax", 0))
 
+    # ❌ pehli baar tax nahi lagna chahiye
+    if last_tax == 0:
+        return
+
+    # ✅ sirf tab lage jab time complete ho
     if now - last_tax >= BANK_TAX_TIME:
-        tax = int(user["bank"] * BANK_TAX_RATE)
+        tax = int(int(user.get("bank", 0)) * BANK_TAX_RATE)
 
         if tax > 0:
-            user["bank"] -= tax
+            user["bank"] = int(user.get("bank", 0)) - tax
 
         user["last_bank_tax"] = now
         save_user(uid, user)
@@ -611,9 +616,13 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     u = get_user(uid)
 
-    apply_bank_tax(uid, u)  # 🔥 TAX APPLY
-
-    amount = int(context.args[0])
+    try:
+        amount = int(context.args[0])
+    except:
+        return await update.message.reply_text(
+            "❌ Invalid amount",
+            reply_to_message_id=update.message.id
+        )
 
     if amount <= 0:
         return await update.message.reply_text(
@@ -627,15 +636,17 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    # 🔥 MAX BANK LIMIT
     if int(u.get("bank", 0)) + amount > MAX_BANK:
         return await update.message.reply_text(
             f"❌ Bank limit reached! Max: ${fmt(MAX_BANK)}",
             reply_to_message_id=update.message.id
         )
 
-    u["coins"] -= amount
-    u["bank"] += amount
+    u["coins"] = int(u.get("coins", 0)) - amount
+    u["bank"] = int(u.get("bank", 0)) + amount
+
+    # tax timer deposit ke time se start hoga
+    u["last_bank_tax"] = time.time()
 
     save_user(uid, u)
     save()
@@ -644,7 +655,6 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🏦 Deposited ${fmt(amount)}",
         reply_to_message_id=update.message.id
     )
-
 
 @admin_required
 async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -659,9 +669,13 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     u = get_user(uid)
 
-    apply_bank_tax(uid, u)  # 🔥 TAX APPLY
-
-    amount = int(context.args[0])
+    try:
+        amount = int(context.args[0])
+    except:
+        return await update.message.reply_text(
+            "❌ Invalid amount",
+            reply_to_message_id=update.message.id
+        )
 
     if amount <= 0:
         return await update.message.reply_text(
@@ -675,8 +689,8 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    u["bank"] -= amount
-    u["coins"] += amount
+    u["bank"] = int(u.get("bank", 0)) - amount
+    u["coins"] = int(u.get("coins", 0)) + amount
 
     save_user(uid, u)
     save()
@@ -694,7 +708,7 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     u = get_user(uid)
 
-    apply_bank_tax(uid, u)  # 🔥 TAX APPLY
+    apply_bank_tax(uid, u)
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
