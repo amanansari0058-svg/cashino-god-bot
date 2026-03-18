@@ -272,6 +272,8 @@ init_db()
 # ADMIN CHECK SYSTEM
 # =========================
 
+MIN_GROUP_MEMBERS = 25
+
 def admin_required(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -283,17 +285,31 @@ def admin_required(func):
                 "❌ Ye bot sirf groups me work karta hai"
             )
 
-        # ✅ Group admin check
+        # ✅ Group checks
         if chat.type in ["group", "supergroup"]:
+
+            # 🔥 MEMBER COUNT CHECK
+            try:
+                member_count = await context.bot.get_chat_member_count(chat.id)
+            except:
+                member_count = 0
+
+            if member_count < MIN_GROUP_MEMBERS:
+                return await update.message.reply_text(
+                    f"❌ Is bot ko use karne ke liye group me kam se kam {MIN_GROUP_MEMBERS} members hone chahiye.\n"
+                    f"👥 Current members: {member_count}",
+                    reply_to_message_id=update.message.id
+                )
+
+            # 🔥 BOT ADMIN CHECK
             bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
 
             if bot_member.status not in ["administrator", "creator"]:
-                await update.message.reply_text(
+                return await update.message.reply_text(
                     "⚠️ Pehle mujhe group me admin do.\n"
                     "Tabhi main yahan work karunga.",
                     reply_to_message_id=update.message.id
                 )
-                return
 
         return await func(update, context)
 
