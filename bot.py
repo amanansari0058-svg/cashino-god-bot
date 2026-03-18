@@ -89,14 +89,21 @@ def init_db():
                     protected_until DOUBLE PRECISION DEFAULT 0,
                     last_rob DOUBLE PRECISION DEFAULT 0,
                     last_kill DOUBLE PRECISION DEFAULT 0,
-                    last_bank_tax DOUBLE PRECISION DEFAULT 0
+                    last_bank_tax DOUBLE PRECISION DEFAULT 0,
+                    last_flip DOUBLE PRECISION DEFAULT 0
                 )
             """)
 
-            # 🔥 YE IMPORTANT FIX (OLD USERS KE LIYE)
+            # 🔥 OLD USERS KE LIYE (IMPORTANT)
             cur.execute("""
                 ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS last_bank_tax DOUBLE PRECISION DEFAULT 0
+            """)
+
+            # 🔥 NEW (FLIP COOLDOWN SAVE)
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS last_flip DOUBLE PRECISION DEFAULT 0
             """)
 
             cur.execute("""
@@ -141,7 +148,6 @@ def save():
     global tax_pool
     set_tax_pool(tax_pool)
 
-
 def get_user(uid):
     uid = str(uid)
 
@@ -155,9 +161,9 @@ def get_user(uid):
                     INSERT INTO users (
                         uid, name, coins, bank, kills,
                         last_daily, dead_until, protected_until,
-                        last_rob, last_kill, last_bank_tax
+                        last_rob, last_kill, last_bank_tax, last_flip
                     )
-                    VALUES (%s, 'User', 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                    VALUES (%s, 'User', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
                     RETURNING *
                 """, (uid,))
                 user = cur.fetchone()
@@ -172,6 +178,7 @@ def get_user(uid):
     user["last_rob"] = float(user.get("last_rob", 0))
     user["last_kill"] = float(user.get("last_kill", 0))
     user["last_bank_tax"] = float(user.get("last_bank_tax", 0))
+    user["last_flip"] = float(user.get("last_flip", 0))  # 🔥 NEW
     user["name"] = str(user.get("name", "User"))
 
     return user
@@ -192,7 +199,8 @@ def save_user(uid, user):
                     protected_until=%s,
                     last_rob=%s,
                     last_kill=%s,
-                    last_bank_tax=%s
+                    last_bank_tax=%s,
+                    last_flip=%s
                 WHERE uid=%s
             """, (
                 user.get("name", "User"),
@@ -205,6 +213,7 @@ def save_user(uid, user):
                 float(user.get("last_rob", 0)),
                 float(user.get("last_kill", 0)),
                 float(user.get("last_bank_tax", 0)),
+                float(user.get("last_flip", 0)),  # 🔥 NEW
                 uid
             ))
         conn.commit()
@@ -991,6 +1000,15 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     u = get_user(update.effective_user.id)
 
+    # 5 sec silent cooldown
+    now = time.time()
+    last_flip = float(u.get("last_flip", 0))
+
+    if now - last_flip < 5:
+        return
+
+    u["last_flip"] = now
+
     try:
         bet = int(context.args[0])
     except:
@@ -1010,7 +1028,7 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice_text = "Heads" if choice == "h" else "Tails"
 
     print(
-        f"FLIP LOG | name={user_name} | bet={bet} | pick={choice_text}"
+        f"FLIP LOG | name={user_name} | bet=${fmt(bet)} | pick={choice_text}"
     )
 
     error = check_bet(u, bet)
@@ -1042,14 +1060,14 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = win_message(update.effective_user, "🪙", result_text, choice_text, win)
 
         print(
-            f"FLIP RESULT | name={user_name} | bet={bet} | pick={choice_text} | result={result_text} | status=WIN | payout={win}"
+            f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=WIN | payout=${fmt(win)}"
         )
     else:
         u["coins"] -= bet
         text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
 
         print(
-            f"FLIP RESULT | name={user_name} | bet={bet} | pick={choice_text} | result={result_text} | status=LOSE | loss={bet}"
+            f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=LOSE | loss=${fmt(bet)}"
         )
 
     save_user(update.effective_user.id, u)
@@ -1060,7 +1078,6 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_to_message_id=update.message.id
     )
-
 
 
 @admin_required
