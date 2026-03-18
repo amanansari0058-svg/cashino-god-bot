@@ -1539,7 +1539,7 @@ async def userinfo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 print("TOKEN FOUND:", bool(TOKEN))
 
-app = ApplicationBuilder().token(TOKEN).build()
+app = ApplicationBuilder().token(TOKEN).concurrent_updates(False).build()
 
 print("APP BUILT")
 
