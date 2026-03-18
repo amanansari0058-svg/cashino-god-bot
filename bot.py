@@ -707,7 +707,6 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
-
 @admin_required
 async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
@@ -720,12 +719,26 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
 
+    next_tax_time = float(u.get("last_bank_tax", 0))
+    remaining = int(next_tax_time - time.time())
+
+    if remaining > 0:
+        hours = remaining // 3600
+        minutes = (remaining % 3600) // 60
+        tax_text = f"⏳ Next tax in {hours}h {minutes}m"
+    else:
+        tax_text = "⚠️ Tax anytime now"
+
     save_user(uid, u)
 
     await update.message.reply_text(
-        f"💰 Wallet: ${fmt(coins)}\n🏦 Bank: ${fmt(bank)}",
+        f"💰 Wallet: ${fmt(coins)}\n"
+        f"🏦 Bank: ${fmt(bank)}\n\n"
+        f"📉 3% tax every 24h\n"
+        f"{tax_text}",
         reply_to_message_id=update.message.id
     )
+
 
 # =========================
 # ACTIONS
@@ -781,7 +794,7 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    victim["dead_until"] = time.time() + 86400
+    victim["dead_until"] = time.time() + 43200
     attacker["coins"] = int(attacker.get("coins", 0)) + KILL_REWARD
     attacker["kills"] = int(attacker.get("kills", 0)) + 1
     attacker["last_kill"] = time.time()
@@ -952,7 +965,6 @@ def lose_message(user, emoji, result, pick, amount):
 👑 <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 💸
 """
 
-
 @admin_required
 async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
@@ -978,6 +990,13 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
+    user_name = html.escape(update.effective_user.first_name)
+    choice_text = "Heads" if choice == "h" else "Tails"
+
+    print(
+        f"FLIP LOG | name={user_name} | bet={bet} | pick={choice_text}"
+    )
+
     error = check_bet(u, bet)
     if error:
         return await update.message.reply_text(
@@ -1001,15 +1020,21 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result_key = "t"
         result_text = "Tails"
 
-    pick_text = "Heads" if choice == "h" else "Tails"
-
     if result_key == choice:
         win = bet * 2
         u["coins"] += win
-        text = win_message(update.effective_user, "🪙", result_text, pick_text, win)
+        text = win_message(update.effective_user, "🪙", result_text, choice_text, win)
+
+        print(
+            f"FLIP RESULT | name={user_name} | bet={bet} | pick={choice_text} | result={result_text} | status=WIN | payout={win}"
+        )
     else:
         u["coins"] -= bet
-        text = lose_message(update.effective_user, "🪙", result_text, pick_text, bet)
+        text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
+
+        print(
+            f"FLIP RESULT | name={user_name} | bet={bet} | pick={choice_text} | result={result_text} | status=LOSE | loss={bet}"
+        )
 
     save_user(update.effective_user.id, u)
     save()
@@ -1019,6 +1044,7 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_to_message_id=update.message.id
     )
+
 
 
 @admin_required
