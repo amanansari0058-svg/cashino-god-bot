@@ -277,6 +277,13 @@ def admin_required(func):
 
         chat = update.effective_chat
 
+        # ❌ DM BLOCK
+        if chat.type == "private":
+            return await update.message.reply_text(
+                "❌ Ye bot sirf groups me work karta hai"
+            )
+
+        # ✅ Group admin check
         if chat.type in ["group", "supergroup"]:
             bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
 
