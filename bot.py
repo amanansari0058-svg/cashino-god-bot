@@ -38,6 +38,8 @@ from telegram.ext import (
 )
 
 user_locks = {}
+flip_busy = set()
+flip_cooldown = {}
 
 # =========================
 # CONFIG
@@ -1002,15 +1004,21 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     uid = update.effective_user.id
 
-    # ✅ per-user lock
-    if uid not in user_locks:
-        user_locks[uid] = asyncio.Lock()
+    # same time pe ek hi flip chale
+    if uid in flip_busy:
+        return
 
-    if user_locks[uid].locked():
-        return  # ❌ ignore spam
+    now = time.time()
+    last = flip_cooldown.get(uid, 0)
 
-    async with user_locks[uid]:
+    # 5 sec tak naya flip ignore
+    if now - last < 5:
+        return
 
+    flip_busy.add(uid)
+    flip_cooldown[uid] = now
+
+    try:
         u = get_user(uid)
 
         try:
@@ -1031,22 +1039,14 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_name = html.escape(update.effective_user.first_name)
         choice_text = "Heads" if choice == "h" else "Tails"
 
+        print(f"FLIP LOG | name={user_name} | bet=${fmt(bet)} | pick={choice_text}")
+
         error = check_bet(u, bet)
         if error:
             return await update.message.reply_text(
                 error,
                 reply_to_message_id=update.message.id
             )
-
-        # ✅ cooldown
-        now = time.time()
-        if now - float(u.get("last_flip", 0)) < 5:
-            return
-
-        u["last_flip"] = now
-        save_user(uid, u)
-
-        print(f"FLIP LOG | name={user_name} | bet=${fmt(bet)} | pick={choice_text}")
 
         shot = await context.bot.send_dice(
             chat_id=update.effective_chat.id,
@@ -1066,11 +1066,19 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if result_key == choice:
             win = bet * 2
-            u["coins"] += win
+            u["coins"] = int(u.get("coins", 0)) + win
             text = win_message(update.effective_user, "🪙", result_text, choice_text, win)
+
+            print(
+                f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=WIN | payout=${fmt(win)}"
+            )
         else:
-            u["coins"] -= bet
+            u["coins"] = int(u.get("coins", 0)) - bet
             text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
+
+            print(
+                f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=LOSE | loss=${fmt(bet)}"
+            )
 
         save_user(uid, u)
         save()
@@ -1080,6 +1088,9 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
             reply_to_message_id=update.message.id
         )
+
+    finally:
+        flip_busy.discard(uid)
 
 
 @admin_required
