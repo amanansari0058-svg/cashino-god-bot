@@ -39,10 +39,6 @@ from telegram.ext import (
     filters,
 )
 
-user_locks = {}
-flip_busy = set()
-flip_cooldown = {}
-
 # =========================
 # CONFIG
 # =========================
@@ -352,7 +348,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     text = """
-👑 Wᴇʟᴄᴏᴍᴇ ᴛᴏ Cᴀsʜɪɴᴏ Gᴏᴅ Eᴄᴏɴᴏᴍʏ ❤️‍🔥!
+👑 Wᴇʟᴄᴏᴍᴇ ᴛᴏ Cᴀsɪɴᴏ Gᴏᴅ Eᴄᴏɴᴏᴍʏ ❤️‍🔥!
 
 Yaha coins kamao, loot maro, kill karo aur games jeeto!
 
@@ -375,12 +371,11 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 ✨ Gᴀᴍᴇs:
 • /flip <amount> <h/t> — 🏀 Basketball flip
 • /dice <amount> <1-6> — 🎲 Dice roll
-• /roulette <amount> <0-36> — 🎰 Slot roulette
-• /color <red/green/violet> <amount> — 🎯 Color prediction
+• /slots <amount> — 🎰 Play slots
+• /color <red/green/> <amount> — 🎯 Color prediction
 
 🌟 Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ:
 • /toprich — Top 10 richest players
-• /taxpool — Total tax coins
 
 😡 Max bet per game: $1,000,000
 """
@@ -399,10 +394,10 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     text = """
-👑 Cᴀsʜɪɴᴏ Gᴏᴅ ❤️‍🔥
+👑 Cᴀsɪɴᴏ Gᴏᴅ ❤️‍🔥
 
 🪙 Cᴏɪɴs
-/daily /bal /give /taxpool
+/daily /bal /give 
 
 🏦 Bᴀɴᴋ
 /deposit /withdraw /cashbal
@@ -410,8 +405,8 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎮 Gᴀᴍᴇs
 /flip <amount> <h/t>
 /dice <amount> <1-6>
-/roulette <amount> <0-36>
-/color <red/green/violet> <amount>
+/slots <amount>
+/color <red/green/> <amount>
 
 ⚔️ Aᴄᴛɪᴏɴ
 /kill /rob /protect /revive
@@ -423,69 +418,6 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
 
     await update.message.reply_text(text)
-
-
-# =========================
-# MENU
-# =========================
-
-@admin_required
-async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    kb = [
-
-        [InlineKeyboardButton("🪙 Balance", callback_data="bal"),
-         InlineKeyboardButton("🎁 Daily", callback_data="daily")],
-
-        [InlineKeyboardButton("🎲 Dice", callback_data="dice"),
-         InlineKeyboardButton("🎡 Roulette", callback_data="roulette")],
-
-        [InlineKeyboardButton("🪙 Flip", callback_data="flip"),
-         InlineKeyboardButton("🎨 Color", callback_data="color")],
-
-        [InlineKeyboardButton("🏆 Leaderboard", callback_data="toprich")]
-
-    ]
-
-    await update.message.reply_text(
-        "👑 GOD ECONOMY MENU",
-        reply_markup=InlineKeyboardMarkup(kb)
-    )
-
-
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    q = update.callback_query
-    await q.answer()
-
-    user_id = q.from_user.id
-
-    if q.data == "bal":
-        u = get_user(user_id)
-
-        protect_left = int(u["protected_until"] - time.time())
-
-        if protect_left > 0:
-            hours = protect_left // 3600
-            minutes = (protect_left % 3600) // 60
-            protect_text = f"🛡 Protection: {hours}h {minutes}m left"
-        else:
-            protect_text = "🛡 Protection: Not active"
-
-        text = (
-            f"👑 {q.from_user.first_name}\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🪙 Coins: ${fmt(u['coins'])}\n"
-            f"🏦 Bank: ${fmt(u['bank'])}\n"
-            f"💀 Kills: {u['kills']}\n"
-            f"{protect_text}\n"
-            f"━━━━━━━━━━━━━━━━━━━━"
-        )
-
-        await q.message.reply_text(text)
-
-    else:
-        await q.message.reply_text(f"Use command: /{q.data}")
 
 
 # =========================
@@ -1023,94 +955,75 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     uid = update.effective_user.id
-
-    # Agar abhi flip chal raha hai to ignore
-    if uid in flip_busy:
-        return
-
-    # 3 sec cooldown after previous completed flip
-    now = time.time()
-    last = flip_cooldown.get(uid, 0)
-    if now - last < 3:
-        return
-
-    flip_busy.add(uid)
+    u = get_user(uid)
 
     try:
-        u = get_user(uid)
-
-        try:
-            bet = int(context.args[0])
-        except:
-            return await update.message.reply_text(
-                "❌ Invalid amount",
-                reply_to_message_id=update.message.id
-            )
-
-        choice = context.args[1].lower()
-        if choice not in ["h", "t"]:
-            return await update.message.reply_text(
-                "❌ Choose h or t",
-                reply_to_message_id=update.message.id
-            )
-
-        user_name = html.escape(update.effective_user.first_name)
-        choice_text = "Heads" if choice == "h" else "Tails"
-
-        print(f"FLIP LOG | name={user_name} | bet=${fmt(bet)} | pick={choice_text}")
-
-        error = check_bet(u, bet)
-        if error:
-            return await update.message.reply_text(
-                error,
-                reply_to_message_id=update.message.id
-            )
-
-        shot = await context.bot.send_dice(
-            chat_id=update.effective_chat.id,
-            emoji="🏀",
+        bet = int(context.args[0])
+    except:
+        return await update.message.reply_text(
+            "❌ Invalid amount",
             reply_to_message_id=update.message.id
         )
 
-        value = shot.dice.value
-        await asyncio.sleep(1)
-
-        if value >= 4:
-            result_key = "h"
-            result_text = "Heads"
-        else:
-            result_key = "t"
-            result_text = "Tails"
-
-        if result_key == choice:
-            win = bet * 2
-            u["coins"] = int(u.get("coins", 0)) + win
-            text = win_message(update.effective_user, "🪙", result_text, choice_text, win)
-
-            print(
-                f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=WIN | payout=${fmt(win)}"
-            )
-        else:
-            u["coins"] = int(u.get("coins", 0)) - bet
-            text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
-
-            print(
-                f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=LOSE | loss=${fmt(bet)}"
-            )
-
-        save_user(uid, u)
-        save()
-
-        await update.message.reply_text(
-            text,
-            parse_mode="HTML",
+    choice = context.args[1].lower()
+    if choice not in ["h", "t"]:
+        return await update.message.reply_text(
+            "❌ Choose h or t",
             reply_to_message_id=update.message.id
         )
 
-    finally:
-        # Cooldown END pe set hoga, start pe nahi
-        flip_cooldown[uid] = time.time()
-        flip_busy.discard(uid)
+    user_name = html.escape(update.effective_user.first_name)
+    choice_text = "Heads" if choice == "h" else "Tails"
+
+    print(f"FLIP LOG | name={user_name} | bet=${fmt(bet)} | pick={choice_text}")
+
+    error = check_bet(u, bet)
+    if error:
+        return await update.message.reply_text(
+            error,
+            reply_to_message_id=update.message.id
+        )
+
+    shot = await context.bot.send_dice(
+        chat_id=update.effective_chat.id,
+        emoji="🏀",
+        reply_to_message_id=update.message.id
+    )
+
+    value = shot.dice.value
+    await asyncio.sleep(1)
+
+    if value >= 4:
+        result_key = "h"
+        result_text = "Heads"
+    else:
+        result_key = "t"
+        result_text = "Tails"
+
+    if result_key == choice:
+        win = bet * 2
+        u["coins"] = int(u.get("coins", 0)) + win
+        text = win_message(update.effective_user, "🪙", result_text, choice_text, win)
+
+        print(
+            f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=WIN | payout=${fmt(win)}"
+        )
+    else:
+        u["coins"] = int(u.get("coins", 0)) - bet
+        text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
+
+        print(
+            f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=LOSE | loss=${fmt(bet)}"
+        )
+
+    save_user(uid, u)
+    save()
+
+    await update.message.reply_text(
+        text,
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
+    )
 
 @admin_required
 async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1651,7 +1564,6 @@ print("APP BUILT")
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_cmd))
-app.add_handler(CommandHandler("menu", menu))
 
 app.add_handler(CommandHandler("bal", bal))
 app.add_handler(CommandHandler("daily", daily))
@@ -1677,9 +1589,6 @@ app.add_handler(CommandHandler("toprich", toprich))
 # NEW OWNER PANEL
 app.add_handler(CommandHandler("panel", panel))
 app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin:"))
-
-# OLD NORMAL BUTTON CALLBACK
-app.add_handler(CallbackQueryHandler(button))
 
 # ALWAYS LAST
 app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), admin_panel_text))
