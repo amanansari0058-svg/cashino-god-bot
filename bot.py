@@ -298,28 +298,21 @@ MIN_GROUP_MEMBERS = 25
 
 def admin_required(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
         user_id = update.effective_user.id
         chat = update.effective_chat
 
-        # 🔥 BANNED USER CHECK
         user = get_user(user_id)
         if user.get("is_banned", False):
-            return await update.message.reply_text(
-                "❌ You are banned from using this bot"
-            )
+            return await update.message.reply_text("❌ You are banned from using this bot")
 
-        # ❌ DM me sirf owner allow
+        # DM me sirf owner allow
         if chat.type == "private":
             if user_id != OWNER_ID:
-                return await update.message.reply_text(
-                    "❌ Bot DM me sirf owner ke liye hai"
-                )
+                return await update.message.reply_text("❌ Bot DM me sirf owner ke liye hai")
+            return await func(update, context)
 
-        # ✅ Group checks
+        # Sirf groups me checks
         if chat.type in ["group", "supergroup"]:
-
-            # 🔥 MEMBER COUNT CHECK
             try:
                 member_count = await context.bot.get_chat_member_count(chat.id)
             except:
@@ -332,13 +325,17 @@ def admin_required(func):
                     reply_to_message_id=update.message.id
                 )
 
-            # 🔥 BOT ADMIN CHECK
-            bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
+            try:
+                bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
+            except:
+                return await update.message.reply_text(
+                    "⚠️ Bot admin status check failed",
+                    reply_to_message_id=update.message.id
+                )
 
             if bot_member.status not in ["administrator", "creator"]:
                 return await update.message.reply_text(
-                    "⚠️ Pehle mujhe group me admin do.\n"
-                    "Tabhi main yahan work karunga.",
+                    "⚠️ Pehle mujhe group me admin do.\nTabhi main yahan work karunga.",
                     reply_to_message_id=update.message.id
                 )
 
