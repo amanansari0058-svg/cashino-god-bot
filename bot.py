@@ -406,34 +406,31 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 
 @admin_required
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
+    text = (
+        "🎰 Casino God Help\n\n"
+        "💰 Economy\n"
+        "/bal - Check balance\n"
+        "/daily - Claim daily reward\n"
+        "/give - Give coins by reply\n"
+        "/deposit - Deposit to bank\n"
+        "/withdraw - Withdraw from bank\n"
+        "/cashbal - Check wallet and bank\n\n"
+        "🎮 Games\n"
+        "/flip - Coin flip game\n"
+        "/dice - Dice game\n"
+        "/slots - Slot machine\n"
+        "/color - Color game\n\n"
+        "⚔️ Actions\n"
+        "/kill - Kill by reply\n"
+        "/rob - Rob by reply\n"
+        "/protect - Activate protection\n"
+        "/revive - Revive by reply\n\n"
+        "🏆 Ranks\n"
+        "/top - Leaderboard\n"
+        "/toprich - Richest users\n"
+    )
 
-    text = """
-👑 Cᴀsɪɴᴏ Gᴏᴅ ❤️‍🔥
-
-🪙 Cᴏɪɴs
-/daily /bal /give 
-
-🏦 Bᴀɴᴋ
-/deposit /withdraw /cashbal
-
-🎮 Gᴀᴍᴇs
-/flip <amount> <h/t>
-/dice <amount> <1-6>
-/slots <amount>
-/color <red/green/> <amount>
-
-⚔️ Aᴄᴛɪᴏɴ
-/kill /rob /protect /revive
-
-🏆 Rᴀɴᴋs
-/top /toprich /topkill
-
-😡 Max bet: $5,000,000 | Min bet: $100
-"""
-
-    await update.message.reply_text(HELP_TEXT)
-
+    await update.message.reply_text(text)
 
 # =========================
 # ECONOMY
@@ -450,6 +447,7 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     uid = target_user.id
     u = await load_user(uid)
+    rank = await asyncio.to_thread(get_user_rank, str(uid))
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
@@ -470,6 +468,7 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🪙 Coins: ${fmt(coins)}\n"
         f"🏦 Bank: ${fmt(bank)}\n"
         f"💀 Kills: {kills}\n"
+        f"🏆 Rank: #{rank}\n"
         f"🛡 Protection: {protect_text}\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
