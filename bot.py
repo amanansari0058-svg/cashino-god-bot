@@ -49,6 +49,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 6479017313
 
 START_COINS = 0
+DAILY_COOLDOWN = 86400
 DAILY_REWARD = 5000
 
 KILL_REWARD = 500
@@ -321,9 +322,23 @@ def admin_required(func):
         chat = update.effective_chat
 
         user = get_user_fast(user_id)
+
+        # banned user block
         if user.get("is_banned", False):
             return await update.message.reply_text(
                 "❌ You are banned from using this bot"
+            )
+
+        # dead user block
+        dead_left = int(float(user.get("dead_until", 0)) - time.time())
+        if dead_left > 0:
+            hours = dead_left // 3600
+            minutes = (dead_left % 3600) // 60
+
+            return await update.message.reply_text(
+                f"💀 Tum dead ho!\n"
+                f"❌ Abhi commands use nahi kar sakte\n"
+                f"⏳ Alive in {hours}h {minutes}m"
             )
 
         # DM me sirf owner allow
@@ -333,22 +348,6 @@ def admin_required(func):
                     "❌ Bot DM me sirf owner ke liye hai"
                 )
             return await func(update, context)
-
-        # Group me sirf bot admin check
-        if chat.type in ["group", "supergroup"]:
-            try:
-                bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
-            except:
-                return await update.message.reply_text(
-                    "⚠️ Bot admin status check failed",
-                    reply_to_message_id=update.message.id
-                )
-
-            if bot_member.status not in ["administrator", "creator"]:
-                return await update.message.reply_text(
-                    "⚠️ Pehle mujhe group me admin do.\nTabhi main yahan work karunga.",
-                    reply_to_message_id=update.message.id
-                )
 
         return await func(update, context)
 
