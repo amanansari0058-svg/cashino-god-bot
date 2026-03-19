@@ -239,7 +239,6 @@ def save_user(uid, user):
                 uid
             ))
         conn.commit()
-
 user_cache[str(uid)] = user
 
 def get_user_rank(uid):
