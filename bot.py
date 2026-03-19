@@ -1607,10 +1607,4 @@ async def clear(app):
 
 app.post_init = clear
 
-# CRASH PROTECTION
-while True:
-    try:
-        app.run_polling(drop_pending_updates=True)
-    except Exception as e:
-        print("CRASH ERROR:", e)
-        time.sleep(5)
+app.run_polling(drop_pending_updates=True)
