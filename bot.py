@@ -28,6 +28,7 @@ import asyncio
 import random
 import time
 import html
+user_cache = {}
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -184,9 +185,21 @@ def get_user(uid):
     user["last_rob"] = float(user.get("last_rob", 0))
     user["last_kill"] = float(user.get("last_kill", 0))
     user["last_bank_tax"] = float(user.get("last_bank_tax", 0))
-    user["last_flip"] = float(user.get("last_flip", 0))  # 🔥 NEW
+    user["last_flip"] = float(user.get("last_flip", 0))
     user["is_banned"] = bool(user.get("is_banned", False))
     user["name"] = str(user.get("name", "User"))
+
+    return user
+
+
+def get_user_fast(uid):
+    uid = str(uid)
+
+    if uid in user_cache:
+        return user_cache[uid]
+
+    user = get_user(uid)
+    user_cache[uid] = user
 
     return user
 
@@ -226,6 +239,8 @@ def save_user(uid, user):
                 uid
             ))
         conn.commit()
+
+user_cache[str(uid)] = user
 
 def get_user_rank(uid):
     uid = str(uid)
@@ -290,37 +305,27 @@ init_db()
 # ADMIN CHECK SYSTEM
 # =========================
 
-MIN_GROUP_MEMBERS = 25
-
 def admin_required(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         chat = update.effective_chat
 
-        user = get_user(user_id)
+        user = get_user_fast(user_id)
         if user.get("is_banned", False):
-            return await update.message.reply_text("❌ You are banned from using this bot")
+            return await update.message.reply_text(
+                "❌ You are banned from using this bot"
+            )
 
         # DM me sirf owner allow
         if chat.type == "private":
             if user_id != OWNER_ID:
-                return await update.message.reply_text("❌ Bot DM me sirf owner ke liye hai")
+                return await update.message.reply_text(
+                    "❌ Bot DM me sirf owner ke liye hai"
+                )
             return await func(update, context)
 
-        # Sirf groups me checks
+        # Group me sirf bot admin check
         if chat.type in ["group", "supergroup"]:
-            try:
-                member_count = await context.bot.get_chat_member_count(chat.id)
-            except:
-                member_count = 0
-
-            if member_count < MIN_GROUP_MEMBERS:
-                return await update.message.reply_text(
-                    f"❌ Is bot ko use karne ke liye group me kam se kam {MIN_GROUP_MEMBERS} members hone chahiye.\n"
-                    f"👥 Current members: {member_count}",
-                    reply_to_message_id=update.message.id
-                )
-
             try:
                 bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
             except:
@@ -435,7 +440,7 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_user = update.effective_user
 
     uid = str(target_user.id)
-    u = get_user(uid)
+    u = get_user_fast(uid)
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
@@ -471,7 +476,7 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_required
 async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
-    u = get_user(update.effective_user.id)
+    u = get_user_fast(update.effective_user.id)
 
     now = time.time()
 
@@ -524,8 +529,8 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     amount = int(context.args[0])
 
-    sender = get_user(sender_user.id)
-    target = get_user(target_user.id)
+    sender = get_user_fast(sender_user.id)
+    target = get_user_fast(target_user.id)
 
     if sender["coins"] < amount:
         return await update.message.reply_text("❌ Not enough coins")
@@ -598,7 +603,7 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     uid = update.effective_user.id
-    u = get_user(uid)
+    u = get_user_fast(uid)
 
     try:
         amount = int(context.args[0])
@@ -651,7 +656,7 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     uid = update.effective_user.id
-    u = get_user(uid)
+    u = get_user_fast(uid)
 
     try:
         amount = int(context.args[0])
@@ -690,12 +695,12 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     uid = update.effective_user.id
-    u = get_user(uid)
+    u = get_user_fast(uid)
 
     apply_bank_tax(uid, u)
 
     # tax lagne ke baad fresh user dubara lo
-    u = get_user(uid)
+    u = get_user_fast(uid)
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
@@ -750,8 +755,8 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    attacker = get_user(attacker_user.id)
-    victim = get_user(victim_user.id)
+    attacker = get_user_fast(attacker_user.id)
+    victim = get_user_fast(victim_user.id)
 
     kill_left = int(KILL_COOLDOWN - (time.time() - float(attacker.get("last_kill", 0))))
 
@@ -807,8 +812,8 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     robber_user = update.effective_user
     target_user = update.message.reply_to_message.from_user
 
-    robber = get_user(robber_user.id)
-    target = get_user(target_user.id)
+    robber = get_user_fast(robber_user.id)
+    target = get_user_fast(target_user.id)
 
     rob_left = int(ROB_COOLDOWN - (time.time() - float(robber.get("last_rob", 0))))
 
@@ -856,7 +861,7 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_required
 async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
-    u = get_user(update.effective_user.id)
+    u = get_user_fast(update.effective_user.id)
 
     now = time.time()
     protect_left = int(float(u.get("protected_until", 0)) - now)
@@ -892,7 +897,7 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     target_user = update.message.reply_to_message.from_user
-    user = get_user(target_user.id)
+    user = get_user_fast(target_user.id)
 
     if not is_dead(user):
         return await update.message.reply_text(
@@ -955,7 +960,7 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     uid = update.effective_user.id
-    u = get_user(uid)
+    u = get_user_fast(uid)
 
     try:
         bet = int(context.args[0])
@@ -1033,7 +1038,7 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    u = get_user(update.effective_user.id)
+    u = get_user_fast(update.effective_user.id)
 
     try:
         bet = int(context.args[0])
@@ -1092,7 +1097,7 @@ async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    u = get_user(update.effective_user.id)
+    u = get_user_fast(update.effective_user.id)
 
     try:
         bet = int(context.args[0])
@@ -1159,7 +1164,7 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
-    u = get_user(update.effective_user.id)
+    u = get_user_fast(update.effective_user.id)
 
     choice = context.args[0].lower()
 
@@ -1392,7 +1397,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data["admin_selected_uid"] = uid
         action = context.user_data.get("admin_action")
 
-        user = get_user(uid)
+        user = get_user_fast(uid)
         name = html.escape(user.get("name", "User"))
 
         if action == "userinfo":
@@ -1515,7 +1520,7 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             return await update.message.reply_text("❌ Invalid amount")
 
-        user = get_user(uid)
+        user = get_user_fast(uid)
         name = html.escape(user.get("name", "User"))
 
         if action == "setcoins":
