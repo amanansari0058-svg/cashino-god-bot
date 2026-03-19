@@ -629,29 +629,30 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # BANK SETTINGS
 # =========================
 
-MAX_BANK = 10_000_000
+MAX_BANK = 1_000_000_000
 BANK_TAX_RATE = 0.03
 BANK_TAX_TIME = 86400  # 1 day
 
-
 def apply_bank_tax(uid, user):
     now = time.time()
-    last_tax = float(user.get("last_bank_tax", 0))
+    next_tax_time = float(user.get("last_bank_tax", 0))
 
-    # ❌ pehli baar tax nahi lagna chahiye
-    if last_tax == 0:
+    # pehli baar set karo (agar nahi hai)
+    if next_tax_time == 0:
+        user["last_bank_tax"] = now + BANK_TAX_TIME
+        save_user(uid, user)
         return
 
-    # ✅ sirf tab lage jab time complete ho
-    if now - last_tax >= BANK_TAX_TIME:
+    # jab time aa jaye
+    if now >= next_tax_time:
         tax = int(int(user.get("bank", 0)) * BANK_TAX_RATE)
 
         if tax > 0:
             user["bank"] = int(user.get("bank", 0)) - tax
 
-        user["last_bank_tax"] = now
+        # next cycle set karo
+        user["last_bank_tax"] = now + BANK_TAX_TIME
         save_user(uid, user)
-
 
 # =========================
 # BANK
@@ -700,7 +701,7 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u["bank"] = int(u.get("bank", 0)) + amount
 
     # tax timer deposit ke time se start hoga
-    u["last_bank_tax"] = time.time()
+    u["last_bank_tax"] = time.time() + BANK_TAX_TIME
 
     save_user(uid, u)
     save()
@@ -754,6 +755,7 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
+
 @admin_required
 async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
@@ -763,18 +765,21 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     apply_bank_tax(uid, u)
 
+    # tax lagne ke baad fresh user dubara lo
+    u = get_user(uid)
+
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
 
     next_tax_time = float(u.get("last_bank_tax", 0))
     remaining = int(next_tax_time - time.time())
 
-    if remaining > 0:
-        hours = remaining // 3600
-        minutes = (remaining % 3600) // 60
-        tax_text = f"⏳ Next tax in {hours}h {minutes}m"
-    else:
-        tax_text = "⚠️ Tax anytime now"
+    if remaining < 0:
+        remaining = 0
+
+    hours = remaining // 3600
+    minutes = (remaining % 3600) // 60
+    tax_text = f"⏳ Next tax in {hours}h {minutes}m"
 
     save_user(uid, u)
 
@@ -1026,10 +1031,10 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if uid in flip_busy:
         return
 
-    # 5 sec cooldown after previous completed flip
+    # 3 sec cooldown after previous completed flip
     now = time.time()
     last = flip_cooldown.get(uid, 0)
-    if now - last < 5:
+    if now - last < 3:
         return
 
     flip_busy.add(uid)
@@ -1071,7 +1076,7 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         value = shot.dice.value
-        await asyncio.sleep(3)
+        await asyncio.sleep(1)
 
         if value >= 4:
             result_key = "h"
@@ -1149,7 +1154,7 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     roll = dice_msg.dice.value
-    await asyncio.sleep(3)
+    await asyncio.sleep(1)
 
     if roll == guess:
         win = bet * 5
@@ -1201,7 +1206,7 @@ async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     value = slot_msg.dice.value
-    await asyncio.sleep(3)
+    await asyncio.sleep(1)
 
     if value == 64:
         win = bet * 10
@@ -1276,7 +1281,7 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     value = dart.dice.value
-    await asyncio.sleep(3)
+    await asyncio.sleep(1)
 
     if value in [1, 2, 3]:
         result = "red"
@@ -1643,7 +1648,7 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 print("TOKEN FOUND:", bool(TOKEN))
 
-app = ApplicationBuilder().token(TOKEN).concurrent_updates(False).build()
+app = ApplicationBuilder().token(TOKEN).concurrent_updates(True).build()
 
 print("APP BUILT")
 
