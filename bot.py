@@ -28,7 +28,6 @@ import asyncio
 import random
 import time
 import html
-user_cache = {}
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -39,6 +38,8 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+
+user_cache = {}
 
 # =========================
 # CONFIG
@@ -202,6 +203,15 @@ def get_user_fast(uid):
     user_cache[uid] = user
 
     return user
+
+
+async def load_user(uid):
+    return await asyncio.to_thread(get_user_fast, str(uid))
+
+
+async def save_user_async(uid, user):
+    await asyncio.to_thread(save_user, str(uid), user)
+    
 
 def save_user(uid, user):
     uid = str(uid)
@@ -422,7 +432,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 😡 Max bet: $5,000,000 | Min bet: $100
 """
 
-    await update.message.reply_text(text)
+    await update.message.reply_text(HELP_TEXT)
 
 
 # =========================
@@ -433,73 +443,73 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
-    # 👇 check reply
     if update.message.reply_to_message:
         target_user = update.message.reply_to_message.from_user
     else:
         target_user = update.effective_user
 
-    uid = str(target_user.id)
-    u = get_user_fast(uid)
+    uid = target_user.id
+    u = await load_user(uid)
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
     kills = int(u.get("kills", 0))
-    rank = get_user_rank(uid)
-
-    name = f"<a href='tg://user?id={uid}'>{html.escape(target_user.first_name)}</a>"
 
     protect_left = int(float(u.get("protected_until", 0)) - time.time())
-    protect_text = (
-        f"{protect_left // 3600}h {(protect_left % 3600) // 60}m left"
-        if protect_left > 0 else "Not active"
-    )
+
+    if protect_left > 0:
+        hours = protect_left // 3600
+        minutes = (protect_left % 3600) // 60
+        protect_text = f"{hours}h {minutes}m left"
+    else:
+        protect_text = "Not active"
 
     text = (
-        f"👑 {name}\n"
+        f"👑 <a href='tg://user?id={uid}'>{html.escape(target_user.first_name)}</a>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🪙 Coins: ${fmt(coins)}\n"
         f"🏦 Bank: ${fmt(bank)}\n"
         f"💀 Kills: {kills}\n"
-        f"🏆 Rank: #{rank}\n"
         f"🛡 Protection: {protect_text}\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
 
-    await update.message.reply_text(
-        text,
-        parse_mode="HTML",
-        reply_to_message_id=update.message.id
-    )
-
+    await update.message.reply_text(text, parse_mode="HTML")
 
 @admin_required
 async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
-    u = get_user_fast(update.effective_user.id)
+
+    uid = update.effective_user.id
+
+    # 🔥 FAST LOAD
+    u = await load_user(uid)
 
     now = time.time()
+    last = float(u.get("last_daily", 0))
 
-    if now - float(u.get("last_daily", 0)) < 86400:
-        remaining = 86400 - (now - float(u.get("last_daily", 0)))
-        hours = int(remaining // 3600)
-        minutes = int((remaining % 3600) // 60)
+    if now - last < DAILY_COOLDOWN:
+        remaining = int(DAILY_COOLDOWN - (now - last))
+        hours = remaining // 3600
+        minutes = (remaining % 3600) // 60
 
         return await update.message.reply_text(
-            f"❌ Daily already claimed\n⏳ Come back in {hours}h {minutes}m",
-            reply_to_message_id=update.message.id
+            f"⏳ Daily already claimed\nTry again in {hours}h {minutes}m"
         )
 
-    u["coins"] = int(u.get("coins", 0)) + DAILY_REWARD
+    reward = DAILY_REWARD
+
+    u["coins"] = int(u.get("coins", 0)) + reward
     u["last_daily"] = now
 
-    save_user(update.effective_user.id, u)
-    save()
+    # 🔥 FAST SAVE
+    await save_user_async(uid, u)
+    await asyncio.to_thread(save)
 
     await update.message.reply_text(
-        f"🎁 Daily Claimed! +${fmt(DAILY_REWARD)}",
-        reply_to_message_id=update.message.id
+        f"🎁 Daily reward claimed!\n💰 +${fmt(reward)} coins"
     )
+
 
 @admin_required
 async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -507,16 +517,10 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     if not update.message.reply_to_message:
-        return await update.message.reply_text(
-            "❌ Kisi user ke message par reply karke /give <amount> use karo",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("❌ Reply karke /give <amount> use karo")
 
     if len(context.args) < 1:
-        return await update.message.reply_text(
-            "Usage: /give <amount>",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("Usage: /give <amount>")
 
     sender_user = update.effective_user
     target_user = update.message.reply_to_message.from_user
@@ -527,10 +531,17 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if target_user.id == sender_user.id:
         return await update.message.reply_text("❌ Khud ko coins nahi de sakte")
 
-    amount = int(context.args[0])
+    try:
+        amount = int(context.args[0])
+    except:
+        return await update.message.reply_text("❌ Invalid amount")
 
-    sender = get_user_fast(sender_user.id)
-    target = get_user_fast(target_user.id)
+    if amount <= 0:
+        return await update.message.reply_text("❌ Amount > 0 hona chahiye")
+
+    # 🔥 FAST LOAD
+    sender = await load_user(sender_user.id)
+    target = await load_user(target_user.id)
 
     if sender["coins"] < amount:
         return await update.message.reply_text("❌ Not enough coins")
@@ -542,21 +553,17 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target["coins"] += send_amount
     tax_pool += tax
 
-    save_user(sender_user.id, sender)
-    save_user(target_user.id, target)
-    save()
+    # 🔥 FAST SAVE
+    await save_user_async(sender_user.id, sender)
+    await save_user_async(target_user.id, target)
+    await asyncio.to_thread(save)
 
     sender_name = html.escape(sender_user.first_name)
     target_name = html.escape(target_user.first_name)
 
     await update.message.reply_text(
-        f"💸 Transfer Successful!\n\n"
-        f"👤 From: <a href='tg://user?id={sender_user.id}'>{sender_name}</a>\n"
-        f"👤 To: <a href='tg://user?id={target_user.id}'>{target_name}</a>\n"
-        f"💰 Sent: ${fmt(send_amount)}\n"
-        f"🏦 Tax: ${fmt(tax)}",
-        parse_mode="HTML",
-        reply_to_message_id=update.message.id
+        f"💸 {sender_name} sent ${fmt(send_amount)} to {target_name}\n"
+        f"🧾 Tax: ${fmt(tax)}"
     )
 
 # =========================
@@ -736,34 +743,26 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not update.message.reply_to_message:
         return await update.message.reply_text(
-            "❌ Kisi user ke message par reply karke /kill use karo.",
-            reply_to_message_id=update.message.id
+            "❌ Kisi user ke message par reply karke /kill use karo."
         )
 
     attacker_user = update.effective_user
     victim_user = update.message.reply_to_message.from_user
 
     if victim_user.is_bot:
-        return await update.message.reply_text(
-            "❌ Bot ko kill nahi kar sakte.",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("❌ Bot ko kill nahi kar sakte.")
 
     if attacker_user.id == victim_user.id:
-        return await update.message.reply_text(
-            "❌ Khud ko kill nahi kar sakte.",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("❌ Khud ko kill nahi kar sakte.")
 
-    attacker = get_user_fast(attacker_user.id)
-    victim = get_user_fast(victim_user.id)
+    attacker = await load_user(attacker_user.id)
+    victim = await load_user(victim_user.id)
 
     kill_left = int(KILL_COOLDOWN - (time.time() - float(attacker.get("last_kill", 0))))
 
     if kill_left > 0:
         return await update.message.reply_text(
-            f"⏳ Kill cooldown active\nTry again in {kill_left}s",
-            reply_to_message_id=update.message.id
+            f"⏳ Kill cooldown active\nTry again in {kill_left}s"
         )
 
     protect_left = int(float(victim.get("protected_until", 0)) - time.time())
@@ -776,8 +775,7 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🛡 <a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a> protected hai\n"
             f"❌ Kill block ho gaya\n"
             f"⏳ Protection khatam hogi {hours}h {minutes}m me",
-            parse_mode="HTML",
-            reply_to_message_id=update.message.id
+            parse_mode="HTML"
         )
 
     victim["dead_until"] = time.time() + 43200
@@ -785,20 +783,18 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     attacker["kills"] = int(attacker.get("kills", 0)) + 1
     attacker["last_kill"] = time.time()
 
-    save_user(attacker_user.id, attacker)
-    save_user(victim_user.id, victim)
-    save()
+    await save_user_async(attacker_user.id, attacker)
+    await save_user_async(victim_user.id, victim)
+    await asyncio.to_thread(save)
 
     await update.message.reply_text(
         f"💀 KILL SUCCESS\n\n"
         f"⚔️ <a href='tg://user?id={attacker_user.id}'>{html.escape(attacker_user.first_name)}</a> ne "
         f"<a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a> ko kill kar diya\n"
         f"💰 Reward: ${fmt(KILL_REWARD)}",
-        parse_mode="HTML",
-        reply_to_message_id=update.message.id
+        parse_mode="HTML"
     )
         
-
 @admin_required
 async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
@@ -812,8 +808,8 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     robber_user = update.effective_user
     target_user = update.message.reply_to_message.from_user
 
-    robber = get_user_fast(robber_user.id)
-    target = get_user_fast(target_user.id)
+    robber = await load_user(robber_user.id)
+    target = await load_user(target_user.id)
 
     rob_left = int(ROB_COOLDOWN - (time.time() - float(robber.get("last_rob", 0))))
 
@@ -848,9 +844,9 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     robber["coins"] = int(robber.get("coins", 0)) + steal
     robber["last_rob"] = time.time()
 
-    save_user(robber_user.id, robber)
-    save_user(target_user.id, target)
-    save()
+    await save_user_async(robber_user.id, robber)
+    await save_user_async(target_user.id, target)
+    await asyncio.to_thread(save)
 
     await update.message.reply_text(
         f"💰 ROB SUCCESS\n\n"
@@ -858,10 +854,13 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
+
 @admin_required
 async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
-    u = get_user_fast(update.effective_user.id)
+
+    uid = update.effective_user.id
+    u = await load_user(uid)
 
     now = time.time()
     protect_left = int(float(u.get("protected_until", 0)) - now)
@@ -878,13 +877,14 @@ async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     u["protected_until"] = now + 86400
 
-    save_user(update.effective_user.id, u)
-    save()
+    await save_user_async(uid, u)
+    await asyncio.to_thread(save)
 
     await update.message.reply_text(
         "🛡 Protection activated for 24 hours",
         reply_to_message_id=update.message.id
     )
+
 
 @admin_required
 async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -897,7 +897,7 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     target_user = update.message.reply_to_message.from_user
-    user = get_user_fast(target_user.id)
+    user = await load_user(target_user.id)
 
     if not is_dead(user):
         return await update.message.reply_text(
@@ -914,13 +914,14 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user["coins"] = int(user.get("coins", 0)) - REVIVE_COST
     user["dead_until"] = 0
 
-    save_user(target_user.id, user)
-    save()
+    await save_user_async(target_user.id, user)
+    await asyncio.to_thread(save)
 
     await update.message.reply_text(
         f"❤️ {target_user.first_name} revive ho gaya",
         reply_to_message_id=update.message.id
     )
+
      
 # =========================
 # GAMES
