@@ -1,33 +1,14 @@
-from flask import Flask
-import threading
-import os
-import psycopg
-from psycopg.rows import dict_row
-
-web = Flask(__name__)
-
-@web.route("/")
-def home():
-    return "Bot is alive", 200
-
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    print(f"Starting Flask on port {port}")
-    web.run(host="0.0.0.0", port=port, debug=False, use_reloader=False, threaded=True)
-
-def keep_alive():
-    t = threading.Thread(target=run_web)
-    t.daemon = True
-    t.start()
-
 # =========================
 # IMPORTS
 # =========================
 
+import os
 import asyncio
 import random
 import time
 import html
+import psycopg
+from psycopg.rows import dict_row
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -38,6 +19,10 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+
+# =========================
+# CACHE
+# =========================
 
 user_cache = {}
 
@@ -68,14 +53,12 @@ MAX_BET = 1000000
 # DATABASE
 # =========================
 
-import psycopg
-from psycopg.rows import dict_row
-
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+
 
 def init_db():
     global tax_pool
@@ -100,7 +83,6 @@ def init_db():
                 )
             """)
 
-            # OLD USERS KE LIYE
             cur.execute("""
                 ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS last_bank_tax DOUBLE PRECISION DEFAULT 0
@@ -157,6 +139,7 @@ def save():
     global tax_pool
     set_tax_pool(tax_pool)
 
+
 def get_user(uid):
     uid = str(uid)
 
@@ -178,6 +161,7 @@ def get_user(uid):
                 user = cur.fetchone()
                 conn.commit()
 
+    # 🔥 TYPE FIX (important)
     user["coins"] = int(user.get("coins", 0))
     user["bank"] = int(user.get("bank", 0))
     user["kills"] = int(user.get("kills", 0))
@@ -202,7 +186,6 @@ def get_user_fast(uid):
 
     user = get_user(uid)
     user_cache[uid] = user
-
     return user
 
 
@@ -213,7 +196,6 @@ async def load_user(uid):
 async def save_user_async(uid, user):
     await asyncio.to_thread(save_user, str(uid), user)
     
-
 def save_user(uid, user):
     uid = str(uid)
 
@@ -253,6 +235,7 @@ def save_user(uid, user):
 
     user_cache[str(uid)] = user
 
+
 def get_user_rank(uid):
     uid = str(uid)
 
@@ -270,11 +253,19 @@ def get_user_rank(uid):
             row = cur.fetchone()
             return int(row["rank"]) if row else 0
 
+
 def update_name_from_update(update: Update):
     uid = str(update.effective_user.id)
-    user = get_user(uid)
-    if update.effective_user.first_name:
-        user["name"] = update.effective_user.first_name
+    first_name = update.effective_user.first_name
+
+    if not first_name:
+        return
+
+    user = get_user_fast(uid)
+
+    # sirf tab save karo jab naam actually change ho
+    if user.get("name") != first_name:
+        user["name"] = first_name
         save_user(uid, user)
 
 
@@ -329,18 +320,6 @@ def admin_required(func):
                 "❌ You are banned from using this bot"
             )
 
-        # dead user block
-        dead_left = int(float(user.get("dead_until", 0)) - time.time())
-        if dead_left > 0:
-            hours = dead_left // 3600
-            minutes = (dead_left % 3600) // 60
-
-            return await update.message.reply_text(
-                f"💀 Tum dead ho!\n"
-                f"❌ Abhi commands use nahi kar sakte\n"
-                f"⏳ Alive in {hours}h {minutes}m"
-            )
-
         # DM me sirf owner allow
         if chat.type == "private":
             if user_id != OWNER_ID:
@@ -348,6 +327,25 @@ def admin_required(func):
                     "❌ Bot DM me sirf owner ke liye hai"
                 )
             return await func(update, context)
+
+        return await func(update, context)
+
+    return wrapper
+
+def alive_required(func):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = get_user_fast(update.effective_user.id)
+
+        dead_left = int(float(user.get("dead_until", 0)) - time.time())
+        if dead_left > 0:
+            hours = dead_left // 3600
+            minutes = (dead_left % 3600) // 60
+
+            return await update.message.reply_text(
+                f"💀 Tum dead ho!\n"
+                f"❌ Dead users games ya action commands use nahi kar sakte\n"
+                f"⏳ Alive in {hours}h {minutes}m"
+            )
 
         return await func(update, context)
 
@@ -386,7 +384,7 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 • /flip <amount> <h/t> — 🏀 Basketball flip
 • /dice <amount> <1-6> — 🎲 Dice roll
 • /slots <amount> — 🎰 Play slots
-• /color <red/green/> <amount> — 🎯 Color prediction
+• /color <red/green> <amount> — 🎯 Color prediction
 
 🌟 Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ:
 • /toprich — Top 10 richest players
@@ -394,10 +392,8 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 😡 Max bet per game: $1,000,000
 """
 
-    await update.message.reply_text(
-        text,
-        reply_to_message_id=update.message.id
-    )
+    await update.message.reply_text(text)
+
 
 # =========================
 # HELP
@@ -445,8 +441,12 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_user = update.effective_user
 
     uid = target_user.id
-    u = await load_user(uid)
-    rank = await asyncio.to_thread(get_user_rank, str(uid))
+
+    # 🔥 parallel load (fast)
+    u, rank = await asyncio.gather(
+        load_user(uid),
+        asyncio.to_thread(get_user_rank, str(uid))
+    )
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
@@ -474,13 +474,12 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, parse_mode="HTML")
 
+
 @admin_required
 async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     uid = update.effective_user.id
-
-    # 🔥 FAST LOAD
     u = await load_user(uid)
 
     now = time.time()
@@ -495,20 +494,18 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⏳ Daily already claimed\nTry again in {hours}h {minutes}m"
         )
 
-    reward = DAILY_REWARD
-
-    u["coins"] = int(u.get("coins", 0)) + reward
+    u["coins"] = int(u.get("coins", 0)) + DAILY_REWARD
     u["last_daily"] = now
 
-    # 🔥 FAST SAVE
     await save_user_async(uid, u)
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
-        f"🎁 Daily reward claimed!\n💰 +${fmt(reward)} coins"
+        f"🎁 Daily reward claimed!\n💰 +${fmt(DAILY_REWARD)} coins"
     )
 
 
+@alive_required
 @admin_required
 async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global tax_pool
@@ -537,9 +534,11 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if amount <= 0:
         return await update.message.reply_text("❌ Amount > 0 hona chahiye")
 
-    # 🔥 FAST LOAD
-    sender = await load_user(sender_user.id)
-    target = await load_user(target_user.id)
+    # 🔥 PARALLEL LOAD (FASTER)
+    sender, target = await asyncio.gather(
+        load_user(sender_user.id),
+        load_user(target_user.id)
+    )
 
     if sender["coins"] < amount:
         return await update.message.reply_text("❌ Not enough coins")
@@ -551,9 +550,12 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target["coins"] += send_amount
     tax_pool += tax
 
-    # 🔥 FAST SAVE
-    await save_user_async(sender_user.id, sender)
-    await save_user_async(target_user.id, target)
+    # 🔥 PARALLEL SAVE (FASTER)
+    await asyncio.gather(
+        save_user_async(sender_user.id, sender),
+        save_user_async(target_user.id, target)
+    )
+
     await asyncio.to_thread(save)
 
     sender_name = html.escape(sender_user.first_name)
@@ -597,43 +599,31 @@ def apply_bank_tax(uid, user):
 # BANK
 # =========================
 
+@alive_required
 @admin_required
 async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     if len(context.args) < 1:
-        return await update.message.reply_text(
-            "Usage: /deposit <amount>",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("Usage: /deposit <amount>")
 
     uid = update.effective_user.id
-    u = get_user_fast(uid)
+    u = await load_user(uid)
 
     try:
         amount = int(context.args[0])
     except:
-        return await update.message.reply_text(
-            "❌ Invalid amount",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("❌ Invalid amount")
 
     if amount <= 0:
-        return await update.message.reply_text(
-            "❌ Amount must be greater than 0",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("❌ Amount must be greater than 0")
 
     if int(u.get("coins", 0)) < amount:
-        return await update.message.reply_text(
-            "❌ Not enough coins",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("❌ Not enough coins")
 
     if int(u.get("bank", 0)) + amount > MAX_BANK:
         return await update.message.reply_text(
-            f"❌ Bank limit reached! Max: ${fmt(MAX_BANK)}",
-            reply_to_message_id=update.message.id
+            f"❌ Bank limit reached! Max: ${fmt(MAX_BANK)}"
         )
 
     u["coins"] = int(u.get("coins", 0)) - amount
@@ -642,57 +632,42 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # tax timer deposit ke time se start hoga
     u["last_bank_tax"] = time.time() + BANK_TAX_TIME
 
-    save_user(uid, u)
-    save()
+    await save_user_async(uid, u)
+    await asyncio.to_thread(save)
 
-    await update.message.reply_text(
-        f"🏦 Deposited ${fmt(amount)}",
-        reply_to_message_id=update.message.id
-    )
+    await update.message.reply_text(f"🏦 Deposited ${fmt(amount)}")
 
+
+@alive_required
 @admin_required
 async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     if len(context.args) < 1:
-        return await update.message.reply_text(
-            "Usage: /withdraw <amount>",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("Usage: /withdraw <amount>")
 
     uid = update.effective_user.id
-    u = get_user_fast(uid)
+    u = await load_user(uid)
 
     try:
         amount = int(context.args[0])
     except:
-        return await update.message.reply_text(
-            "❌ Invalid amount",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("❌ Invalid amount")
 
     if amount <= 0:
-        return await update.message.reply_text(
-            "❌ Amount must be greater than 0",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("❌ Amount must be greater than 0")
 
     if int(u.get("bank", 0)) < amount:
-        return await update.message.reply_text(
-            "❌ Not enough bank balance",
-            reply_to_message_id=update.message.id
-        )
+        return await update.message.reply_text("❌ Not enough bank balance")
 
     u["bank"] = int(u.get("bank", 0)) - amount
     u["coins"] = int(u.get("coins", 0)) + amount
 
-    save_user(uid, u)
-    save()
+    await save_user_async(uid, u)
+    await asyncio.to_thread(save)
 
-    await update.message.reply_text(
-        f"💰 Withdrawn ${fmt(amount)}",
-        reply_to_message_id=update.message.id
-    )
+    await update.message.reply_text(f"💰 Withdrawn ${fmt(amount)}")
+
 
 
 @admin_required
@@ -700,12 +675,13 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     uid = update.effective_user.id
-    u = get_user_fast(uid)
+    u = await load_user(uid)
 
-    apply_bank_tax(uid, u)
+    # apply_bank_tax sync hai, isliye thread me chalao
+    await asyncio.to_thread(apply_bank_tax, uid, u)
 
     # tax lagne ke baad fresh user dubara lo
-    u = get_user_fast(uid)
+    u = await load_user(uid)
 
     coins = int(u.get("coins", 0))
     bank = int(u.get("bank", 0))
@@ -720,25 +696,20 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     minutes = (remaining % 3600) // 60
     tax_text = f"⏳ Next tax in {hours}h {minutes}m"
 
-    save_user(uid, u)
-
     await update.message.reply_text(
         f"💰 Wallet: ${fmt(coins)}\n"
         f"🏦 Bank: ${fmt(bank)}\n\n"
         f"📉 3% tax every 24h\n"
-        f"{tax_text}",
-        reply_to_message_id=update.message.id
+        f"{tax_text}"
     )
-
 
 # =========================
 # ACTIONS
 # =========================
 
+@alive_required
 @admin_required
 async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
-
     if not update.message.reply_to_message:
         return await update.message.reply_text(
             "❌ Kisi user ke message par reply karke /kill use karo."
@@ -753,8 +724,10 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if attacker_user.id == victim_user.id:
         return await update.message.reply_text("❌ Khud ko kill nahi kar sakte.")
 
-    attacker = await load_user(attacker_user.id)
-    victim = await load_user(victim_user.id)
+    attacker, victim = await asyncio.gather(
+        load_user(attacker_user.id),
+        load_user(victim_user.id)
+    )
 
     kill_left = int(KILL_COOLDOWN - (time.time() - float(attacker.get("last_kill", 0))))
 
@@ -781,8 +754,10 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     attacker["kills"] = int(attacker.get("kills", 0)) + 1
     attacker["last_kill"] = time.time()
 
-    await save_user_async(attacker_user.id, attacker)
-    await save_user_async(victim_user.id, victim)
+    await asyncio.gather(
+        save_user_async(attacker_user.id, attacker),
+        save_user_async(victim_user.id, victim)
+    )
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
@@ -792,11 +767,11 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💰 Reward: ${fmt(KILL_REWARD)}",
         parse_mode="HTML"
     )
-        
+
+
+@alive_required
 @admin_required
 async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
-
     if not update.message.reply_to_message:
         return await update.message.reply_text(
             "❌ Kisi user ke message par reply karke /rob use karo.",
@@ -806,8 +781,10 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     robber_user = update.effective_user
     target_user = update.message.reply_to_message.from_user
 
-    robber = await load_user(robber_user.id)
-    target = await load_user(target_user.id)
+    robber, target = await asyncio.gather(
+        load_user(robber_user.id),
+        load_user(target_user.id)
+    )
 
     rob_left = int(ROB_COOLDOWN - (time.time() - float(robber.get("last_rob", 0))))
 
@@ -842,8 +819,10 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     robber["coins"] = int(robber.get("coins", 0)) + steal
     robber["last_rob"] = time.time()
 
-    await save_user_async(robber_user.id, robber)
-    await save_user_async(target_user.id, target)
+    await asyncio.gather(
+        save_user_async(robber_user.id, robber),
+        save_user_async(target_user.id, target)
+    )
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
@@ -853,10 +832,9 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@alive_required
 @admin_required
 async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
-
     uid = update.effective_user.id
     u = await load_user(uid)
 
@@ -884,10 +862,9 @@ async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@alive_required
 @admin_required
 async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_name_from_update(update)
-
     if not update.message.reply_to_message:
         return await update.message.reply_text(
             "❌ Kisi dead user ke message par reply karke /revive use karo.",
@@ -919,7 +896,6 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"❤️ {target_user.first_name} revive ho gaya",
         reply_to_message_id=update.message.id
     )
-
      
 # =========================
 # GAMES
@@ -950,6 +926,7 @@ def lose_message(user, emoji, result, pick, amount):
 👑 <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 💸
 """
 
+@alive_required
 @admin_required
 async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
@@ -1029,6 +1006,8 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.id
     )
 
+
+@alive_required
 @admin_required
 async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
@@ -1088,6 +1067,7 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@alive_required
 @admin_required
 async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 1:
@@ -1155,6 +1135,7 @@ async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@alive_required
 @admin_required
 async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
@@ -1225,15 +1206,7 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_required
 async def toprich(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT uid, name, coins
-                FROM users
-                ORDER BY coins DESC
-                LIMIT 10
-            """)
-            rows = cur.fetchall()
+    rows = await asyncio.to_thread(get_top_users)
 
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
     text = "🏆 GOD WEALTH TOP 10\n━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -1242,18 +1215,30 @@ async def toprich(update: Update, context: ContextTypes.DEFAULT_TYPE):
         uid = row["uid"]
         name = html.escape(str(row.get("name", "User")))
         coins = int(row.get("coins", 0))
+
         text += f"{medals[i]} <a href='tg://user?id={uid}'>{name}</a> — ${fmt(coins)}\n"
 
     await update.message.reply_text(
         text,
-        parse_mode="HTML",
-        reply_to_message_id=update.message.id
+        parse_mode="HTML"
     )
+
+
+def get_top_users():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT uid, name, coins
+                FROM users
+                ORDER BY coins DESC
+                LIMIT 10
+            """)
+            return cur.fetchall()
+
 
 @admin_required
 async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await toprich(update, context)
-
 
 # =========================
 # OWNER PREMIUM PANEL
@@ -1555,7 +1540,6 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return await update.message.reply_text(msg)
 
-
 # =========================
 # APP START
 # =========================
@@ -1598,8 +1582,6 @@ app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin:"))
 app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), admin_panel_text))
 
 print("God Economy Bot started...")
-keep_alive()
-
 print("STARTING POLLING")
 
 async def clear(app):
