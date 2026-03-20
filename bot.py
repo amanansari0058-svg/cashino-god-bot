@@ -50,6 +50,16 @@ MIN_BET = 100
 MAX_BET = 1000000
 
 # =========================
+# SPAM SYSTEM
+# =========================
+
+spam_tracker = {}
+
+SPAM_COOLDOWN = 2.0
+SPAM_RESET_TIME = 5.0
+SPAM_BASE_PENALTY = 500
+
+# =========================
 # DATABASE
 # =========================
 
@@ -110,6 +120,11 @@ def init_db():
                 VALUES ('tax_pool', '0')
                 ON CONFLICT (key) DO NOTHING
             """)
+            
+            cur.execute("""
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS username TEXT DEFAULT ''
+""")
 
         conn.commit()
 
@@ -174,6 +189,7 @@ def get_user(uid):
     user["last_flip"] = float(user.get("last_flip", 0))
     user["is_banned"] = bool(user.get("is_banned", False))
     user["name"] = str(user.get("name", "User"))
+    user["username"] = str(user.get("username", ""))
 
     return user
 
@@ -199,11 +215,13 @@ async def save_user_async(uid, user):
 def save_user(uid, user):
     uid = str(uid)
 
+    
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE users
                 SET name=%s,
+                    username=%s,
                     coins=%s,
                     bank=%s,
                     kills=%s,
@@ -218,6 +236,7 @@ def save_user(uid, user):
                 WHERE uid=%s
             """, (
                 user.get("name", "User"),
+                user.get("username", ""),
                 int(user.get("coins", 0)),
                 int(user.get("bank", 0)),
                 int(user.get("kills", 0)),
@@ -257,15 +276,24 @@ def get_user_rank(uid):
 def update_name_from_update(update: Update):
     uid = str(update.effective_user.id)
     first_name = update.effective_user.first_name
+    username = update.effective_user.username or ""
 
     if not first_name:
         return
 
     user = get_user_fast(uid)
 
-    # sirf tab save karo jab naam actually change ho
+    changed = False
+
     if user.get("name") != first_name:
         user["name"] = first_name
+        changed = True
+
+    if user.get("username", "") != username:
+        user["username"] = username
+        changed = True
+
+    if changed:
         save_user(uid, user)
 
 
@@ -311,8 +339,9 @@ def admin_required(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         chat = update.effective_chat
+        now = time.time()
 
-        user = get_user_fast(user_id)
+        user = await load_user(user_id)
 
         # banned user block
         if user.get("is_banned", False):
@@ -326,26 +355,56 @@ def admin_required(func):
                 return await update.message.reply_text(
                     "❌ Bot DM me sirf owner ke liye hai"
                 )
-            return await func(update, context)
 
-        return await func(update, context)
+        # OWNER pe anti-spam nahi lagega
+        if user_id != OWNER_ID:
+            # =========================
+            # ANTI SPAM
+            # =========================
+            data = spam_tracker.get(user_id, {
+                "last_time": 0,
+                "level": 0
+            })
 
-    return wrapper
+            last_time = float(data.get("last_time", 0))
+            level = int(data.get("level", 0))
 
-def alive_required(func):
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = get_user_fast(update.effective_user.id)
+            # agar 5 sec se zyada ruk gaya to reset
+            if now - last_time > SPAM_RESET_TIME:
+                level = 0
 
-        dead_left = int(float(user.get("dead_until", 0)) - time.time())
-        if dead_left > 0:
-            hours = dead_left // 3600
-            minutes = (dead_left % 3600) // 60
+            # spam detect
+            if now - last_time < SPAM_COOLDOWN:
+                level += 1
 
-            return await update.message.reply_text(
-                f"💀 Tum dead ho!\n"
-                f"❌ Dead users games ya action commands use nahi kar sakte\n"
-                f"⏳ Alive in {hours}h {minutes}m"
-            )
+                penalty = SPAM_BASE_PENALTY * (2 ** (level - 1))
+                next_penalty = penalty * 2
+
+                current_coins = int(user.get("coins", 0))
+                deducted = min(current_coins, penalty)
+                user["coins"] = current_coins - deducted
+
+                spam_tracker[user_id] = {
+                    "last_time": now,
+                    "level": level
+                }
+
+                await save_user_async(user_id, user)
+                await asyncio.to_thread(save)
+
+                return await update.message.reply_text(
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"🚨 Spam detected bhai\n"
+    f"💸 Penalty: -${fmt(deducted)}\n"
+    f"⚠️ Offence #{level} Penalty Double Har Bar\n"
+    f"🧘 Aaram se bhai spam nhi kro 🤡\n"
+    f"━━━━━━━━━━━━━━━━━━━━"
+)
+            # normal command allowed
+            spam_tracker[user_id] = {
+                "last_time": now,
+                "level": level
+            }
 
         return await func(update, context)
 
@@ -1247,15 +1306,15 @@ async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def is_owner(update: Update):
     return update.effective_user.id == OWNER_ID
 
-
 def admin_search_users(query: str, limit: int = 10):
     query = query.strip()
 
     with get_conn() as conn:
         with conn.cursor() as cur:
+            # direct id search
             if query.isdigit():
                 cur.execute("""
-                    SELECT uid, name, coins, bank
+                    SELECT uid, name, username, coins, bank
                     FROM users
                     WHERE uid = %s
                     LIMIT %s
@@ -1264,13 +1323,70 @@ def admin_search_users(query: str, limit: int = 10):
                 if rows:
                     return rows
 
+            q = query.lower().lstrip("@")
+
+            # name + username search
             cur.execute("""
-                SELECT uid, name, coins, bank
+                SELECT uid, name, username, coins, bank
                 FROM users
-                WHERE name ILIKE %s
+                WHERE LOWER(name) LIKE %s
+                   OR LOWER(COALESCE(username, '')) LIKE %s
                 ORDER BY coins DESC
                 LIMIT %s
-            """, (f"%{query}%", limit))
+            """, (f"%{q}%", f"%{q}%", limit))
+
+            return cur.fetchall()
+
+
+# =========================
+# BANNED USERS HELPERS
+# =========================
+
+def admin_get_banned_users(limit: int = 10):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT uid, name, username, coins, bank
+                FROM users
+                WHERE is_banned = TRUE
+                ORDER BY name ASC
+                LIMIT %s
+            """, (limit,))
+            return cur.fetchall()
+
+
+def admin_search_banned_users(query: str, limit: int = 10):
+    query = query.strip()
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # direct id search
+            if query.isdigit():
+                cur.execute("""
+                    SELECT uid, name, username, coins, bank
+                    FROM users
+                    WHERE is_banned = TRUE AND uid = %s
+                    LIMIT %s
+                """, (query, limit))
+                rows = cur.fetchall()
+                if rows:
+                    return rows
+
+            q = query.lower().lstrip("@")
+
+            # name + username search (only banned)
+            cur.execute("""
+                SELECT uid, name, username, coins, bank
+                FROM users
+                WHERE is_banned = TRUE
+                  AND (
+                      LOWER(name) LIKE %s
+                      OR LOWER(COALESCE(username, '')) LIKE %s
+                  )
+                ORDER BY name ASC
+                LIMIT %s
+            """, (f"%{q}%", f"%{q}%", limit))
+
             return cur.fetchall()
 
 @admin_required
@@ -1372,10 +1488,38 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return await query.edit_message_text("Send user name or user id to search for Ban User")
 
     if data.startswith("admin:unbanuser"):
-        context.user_data["admin_action"] = "unbanuser"
-        context.user_data["admin_step"] = "search_user"
-        return await query.edit_message_text("Send user name or user id to search for Unban User")
+    context.user_data["admin_action"] = "unbanuser"
+    context.user_data["admin_step"] = "search_user"
 
+    rows = admin_get_banned_users()
+
+    if not rows:
+        return await query.edit_message_text(
+            "✅ Abhi koi banned user nahi hai\n\nSend user name, username ya user id agar search karna hai"
+        )
+
+    keyboard = []
+    for row in rows:
+        uid = str(row["uid"])
+        name = html.escape(str(row.get("name", "User")))
+        username = str(row.get("username", "") or "")
+        coins = int(row.get("coins", 0))
+        bank = int(row.get("bank", 0))
+
+        label = f"{name}"
+        if username:
+            label += f" (@{username})"
+        label += f" | ${fmt(coins)} | 🏦 ${fmt(bank)}"
+
+        keyboard.append([
+            InlineKeyboardButton(label, callback_data=f"admin:pick:{uid}")
+        ])
+
+    return await query.edit_message_text(
+        "🚫 Banned users list\n\nNeeche se select karo ya name/username/id bhej ke search karo",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    
     if data.startswith("admin:pick:"):
         uid = data.split(":", 2)[2]
         context.user_data["admin_selected_uid"] = uid
@@ -1468,7 +1612,11 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if step == "search_user":
-        search = update.message.text.strip()
+    search = update.message.text.strip()
+
+    if action == "unbanuser":
+        rows = admin_search_banned_users(search)
+    else:
         rows = admin_search_users(search)
 
         if not rows:
@@ -1476,17 +1624,23 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard = []
         for row in rows:
-            uid = str(row["uid"])
-            name = html.escape(str(row.get("name", "User")))
-            coins = int(row.get("coins", 0))
-            bank = int(row.get("bank", 0))
+    uid = str(row["uid"])
+    name = html.escape(str(row.get("name", "User")))
+    username = str(row.get("username", "") or "")
+    coins = int(row.get("coins", 0))
+    bank = int(row.get("bank", 0))
 
-            keyboard.append([
-                InlineKeyboardButton(
-                    f"{name} | ${fmt(coins)} | 🏦 ${fmt(bank)}",
-                    callback_data=f"admin:pick:{uid}"
-                )
-            ])
+    label = f"{name}"
+    if username:
+        label += f" (@{username})"
+    label += f" | ${fmt(coins)} | 🏦 ${fmt(bank)}"
+
+    keyboard.append([
+        InlineKeyboardButton(
+            label,
+            callback_data=f"admin:pick:{uid}"
+        )
+    ])
 
         return await update.message.reply_text(
             "Select user:",
