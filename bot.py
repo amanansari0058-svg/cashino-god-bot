@@ -361,6 +361,22 @@ def admin_required(func):
             # =========================
             # ANTI SPAM
             # =========================
+
+            text = update.message.text.lower().strip() if update.message and update.message.text else ""
+
+            # ✅ SAFE COMMANDS
+            safe_commands = [
+                "/start", "/help",
+                "/top", "/toprich",
+                "/bal", "/cashbal",
+                "/daily", "/deposit", "/withdraw",
+                "/protect", "/revive", "/give"
+            ]
+
+            # ✅ skip safe commands
+            if any(text.startswith(cmd) for cmd in safe_commands):
+                return await func(update, context)
+
             data = spam_tracker.get(user_id, {
                 "last_time": 0,
                 "level": 0
@@ -369,7 +385,7 @@ def admin_required(func):
             last_time = float(data.get("last_time", 0))
             level = int(data.get("level", 0))
 
-            # agar 5 sec se zyada ruk gaya to reset
+            # reset after time
             if now - last_time > SPAM_RESET_TIME:
                 level = 0
 
@@ -378,7 +394,6 @@ def admin_required(func):
                 level += 1
 
                 penalty = SPAM_BASE_PENALTY * (2 ** (level - 1))
-                next_penalty = penalty * 2
 
                 current_coins = int(user.get("coins", 0))
                 deducted = min(current_coins, penalty)
@@ -393,13 +408,14 @@ def admin_required(func):
                 await asyncio.to_thread(save)
 
                 return await update.message.reply_text(
-    f"━━━━━━━━━━━━━━━━━━━━\n"
-    f"🚨 Spam detected bhai\n"
-    f"💸 Penalty: -${fmt(deducted)}\n"
-    f"⚠️ Offence #{level} Penalty Double Har Bar\n"
-    f"🧘 Aaram se bhai spam nhi kro 🤡\n"
-    f"━━━━━━━━━━━━━━━━━━━━"
-)
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🚨 Spam detected bhai\n"
+                    f"💸 Penalty: -${fmt(deducted)}\n"
+                    f"⚠️ Offence #{level} Penalty Double Har Bar\n"
+                    f"🧘 Aaram se bhai spam nhi kro 🤡\n"
+                    f"━━━━━━━━━━━━━━━━━━━━"
+                )
+
             # normal command allowed
             spam_tracker[user_id] = {
                 "last_time": now,
