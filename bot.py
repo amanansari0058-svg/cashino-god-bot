@@ -1611,38 +1611,40 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not step or not action:
         return
 
-    if step == "search_user":
-    search = update.message.text.strip()
+     if step == "search_user":
+        search = update.message.text.strip()
 
-    if action == "unbanuser":
-        rows = admin_search_banned_users(search)
-    else:
-        rows = admin_search_users(search)
+        if action == "unbanuser":
+            rows = admin_search_banned_users(search)
+        else:
+            rows = admin_search_users(search)
 
         if not rows:
-            return await update.message.reply_text("❌ No user found")
+            return await update.message.reply_text("❌ User not found")
 
         keyboard = []
         for row in rows:
-    uid = str(row["uid"])
-    name = html.escape(str(row.get("name", "User")))
-    username = str(row.get("username", "") or "")
-    coins = int(row.get("coins", 0))
-    bank = int(row.get("bank", 0))
+            uid = str(row["uid"])
+            name = html.escape(str(row.get("name", "User")))
+            username = str(row.get("username", "") or "")
+            coins = int(row.get("coins", 0))
+            bank = int(row.get("bank", 0))
 
-    label = f"{name}"
-    if username:
-        label += f" (@{username})"
-    label += f" | ${fmt(coins)} | 🏦 ${fmt(bank)}"
+            label = f"{name}"
+            if username:
+                label += f" (@{username})"
+            label += f" | ${fmt(coins)} | 🏦 ${fmt(bank)}"
 
-    keyboard.append([
-        InlineKeyboardButton(
-            label,
-            callback_data=f"admin:pick:{uid}"
+            keyboard.append([
+                InlineKeyboardButton(label, callback_data=f"admin:pick:{uid}")
+            ])
+
+        await update.message.reply_text(
+            "Select user:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-    ])
 
-        return await update.message.reply_text(
+        await update.message.reply_text(
             "Select user:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
