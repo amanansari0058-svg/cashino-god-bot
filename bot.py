@@ -1488,37 +1488,37 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return await query.edit_message_text("Send user name or user id to search for Ban User")
 
     if data.startswith("admin:unbanuser"):
-    context.user_data["admin_action"] = "unbanuser"
-    context.user_data["admin_step"] = "search_user"
+        context.user_data["admin_action"] = "unbanuser"
+        context.user_data["admin_step"] = "search_user"
 
-    rows = admin_get_banned_users()
+        rows = admin_get_banned_users()
 
-    if not rows:
+        if not rows:
+            return await query.edit_message_text(
+                "✅ Abhi koi banned user nahi hai\n\nSend user name, username ya user id agar search karna hai"
+            )
+
+        keyboard = []
+        for row in rows:
+            uid = str(row["uid"])
+            name = html.escape(str(row.get("name", "User")))
+            username = str(row.get("username", "") or "")
+            coins = int(row.get("coins", 0))
+            bank = int(row.get("bank", 0))
+
+            label = f"{name}"
+            if username:
+                label += f" (@{username})"
+            label += f" | ${fmt(coins)} | 🏦 ${fmt(bank)}"
+
+            keyboard.append([
+                InlineKeyboardButton(label, callback_data=f"admin:pick:{uid}")
+            ])
+
         return await query.edit_message_text(
-            "✅ Abhi koi banned user nahi hai\n\nSend user name, username ya user id agar search karna hai"
+            "🚫 Banned users list\n\nNeeche se select karo ya name/username/id bhej ke search karo",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-
-    keyboard = []
-    for row in rows:
-        uid = str(row["uid"])
-        name = html.escape(str(row.get("name", "User")))
-        username = str(row.get("username", "") or "")
-        coins = int(row.get("coins", 0))
-        bank = int(row.get("bank", 0))
-
-        label = f"{name}"
-        if username:
-            label += f" (@{username})"
-        label += f" | ${fmt(coins)} | 🏦 ${fmt(bank)}"
-
-        keyboard.append([
-            InlineKeyboardButton(label, callback_data=f"admin:pick:{uid}")
-        ])
-
-    return await query.edit_message_text(
-        "🚫 Banned users list\n\nNeeche se select karo ya name/username/id bhej ke search karo",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
     
     if data.startswith("admin:pick:"):
         uid = data.split(":", 2)[2]
