@@ -410,6 +410,28 @@ def admin_required(func):
 
     return wrapper
 
+def alive_required(func):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = get_user_fast(update.effective_user.id)
+
+        dead_left = int(float(user.get("dead_until", 0)) - time.time())
+
+        if dead_left > 0:
+            hours = dead_left // 3600
+            minutes = (dead_left % 3600) // 60
+
+            return await update.message.reply_text(
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"💀 Tum dead ho bhai\n"
+                f"❌ Abhi ye command use nahi kar sakte\n"
+                f"⏳ Alive in {hours}h {minutes}m\n"
+                f"━━━━━━━━━━━━━━━━━━━━"
+            )
+
+        return await func(update, context)
+
+    return wrapper
+
 # =========================
 # START
 # =========================
