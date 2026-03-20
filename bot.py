@@ -1597,12 +1597,14 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             f"Now send amount"
         )
 
-
 async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         return
 
     if update.effective_chat.type != "private":
+        return
+
+    if not update.message or not update.message.text:
         return
 
     step = context.user_data.get("admin_step")
@@ -1611,7 +1613,10 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not step or not action:
         return
 
-     if step == "search_user":
+    # =========================
+    # SEARCH USER STEP
+    # =========================
+    if step == "search_user":
         search = update.message.text.strip()
 
         if action == "unbanuser":
@@ -1639,18 +1644,17 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton(label, callback_data=f"admin:pick:{uid}")
             ])
 
-        await update.message.reply_text(
+        return await update.message.reply_text(
             "Select user:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-        await update.message.reply_text(
-            "Select user:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
+    # =========================
+    # ENTER AMOUNT STEP
+    # =========================
     if step == "enter_amount":
         uid = context.user_data.get("admin_selected_uid")
+
         if not uid:
             context.user_data.pop("admin_step", None)
             return await update.message.reply_text("❌ No user selected")
@@ -1666,35 +1670,41 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if action == "setcoins":
             user["coins"] = amount
             save_user(uid, user)
-            save()
-            msg = f"✅ Coins set to ${fmt(amount)} for {name}"
+            await asyncio.to_thread(save)
 
-        elif action == "addcoins":
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
+
+            return await update.message.reply_text(
+                f"✅ {name} coins set to ${fmt(amount)}"
+            )
+
+        if action == "addcoins":
             user["coins"] = int(user.get("coins", 0)) + amount
             save_user(uid, user)
-            save()
-            msg = f"✅ Added ${fmt(amount)} coins to {name}"
+            await asyncio.to_thread(save)
 
-        elif action == "setbank":
-            user["bank"] = amount
-            save_user(uid, user)
-            save()
-            msg = f"✅ Bank set to ${fmt(amount)} for {name}"
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
 
-        elif action == "addbank":
+            return await update.message.reply_text(
+                f"✅ Added ${fmt(amount)} coins to {name}"
+            )
+
+        if action == "addbank":
             user["bank"] = int(user.get("bank", 0)) + amount
             save_user(uid, user)
-            save()
-            msg = f"✅ Added ${fmt(amount)} bank to {name}"
+            await asyncio.to_thread(save)
 
-        else:
-            msg = "❌ Unknown action"
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
 
-        context.user_data.pop("admin_step", None)
-        context.user_data.pop("admin_action", None)
-        context.user_data.pop("admin_selected_uid", None)
+            return await update.message.reply_text(
+                f"✅ Added ${fmt(amount)} bank balance to {name}"
+            )
 
-        return await update.message.reply_text(msg)
+        return await update.message.reply_text("❌ Invalid admin action")
+
 
 # =========================
 # APP START
