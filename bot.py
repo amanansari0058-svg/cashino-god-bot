@@ -440,11 +440,12 @@ def alive_required(func):
             minutes = (dead_left % 3600) // 60
 
             return await update.message.reply_text(
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"💀 Tum dead ho bhai\n"
-                f"❌ Abhi ye command use nahi kar sakte\n"
-                f"⏳ Alive in {hours}h {minutes}m\n"
-                f"━━━━━━━━━━━━━━━━━━━━"
+    f"💀 <b>Tum dead ho bhai</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"❌ <b>Abhi ye command use nahi kar sakte</b>\n"
+    f"⏳ Alive in {hours}h {minutes}m\n"
+    f"━━━━━━━━━━━━━━━━━━━━",
+    parse_mode="HTML"
             )
 
         return await func(update, context)
@@ -460,44 +461,44 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     text = """
-👑 Wᴇʟᴄᴏᴍᴇ ᴛᴏ Cᴀsɪɴᴏ Gᴏᴅ Eᴄᴏɴᴏᴍʏ ❤️‍🔥!
+👑 <b>Wᴇʟᴄᴏᴍᴇ ᴛᴏ Cᴀsɪɴᴏ Gᴏᴅ Eᴄᴏɴᴏᴍʏ ❤️‍🔥!</b>
 
 Yaha coins kamao, loot maro, kill karo aur games jeeto!
 
-🪙 Cᴏɪɴ Cᴏᴍᴍᴀɴᴅs:
-• /daily — Roz free coins
-• /bal — Apna coins balance + rank
-• /give <user_id> <amount> — Coins gift karo (10% tax)
+🪙 <b>Cᴏɪɴ Cᴏᴍᴍᴀɴᴅs:</b>
+• <b>/daily</b> — Roz free coins  
+• <b>/bal</b> — Apna coins balance + rank  
+• <b>/give</b> (reply) — Coins gift karo (10% tax)
 
-💵 Cᴀsʜ Cᴏᴍᴍᴀɴᴅs:
-• /cashbal — Wallet aur bank balance dekho
-• /deposit <amount> — Coins bank me daalo
-• /withdraw <amount> — Bank se coins nikalo
+💵 <b>Cᴀsʜ Cᴏᴍᴍᴀɴᴅs:</b>
+• <b>/cashbal</b> — Wallet aur bank balance dekho  
+• <b>/deposit</b> &lt;amount&gt; — Coins bank me daalo  
+• <b>/withdraw</b> &lt;amount&gt; — Bank se coins nikalo  
 
-👊 Aᴄᴛɪᴏɴ Cᴏᴍᴍᴀɴᴅs:
-• /kill (reply) — Target ko kill karo
-• /rob (reply) — Kisi ke coins loot lo
-• /protect — 24hr protection lo
-• /revive (reply) — Dead user revive karo
+👊 <b>Aᴄᴛɪᴏɴ Cᴏᴍᴍᴀɴᴅs:</b>
+• <b>/kill</b> (reply) — Target ko kill karo  
+• <b>/rob</b> (reply) — Kisi ke coins loot lo  
+• <b>/protect</b> — 24hr protection lo  
+• <b>/revive</b> (reply) — Dead user revive karo  
 
-✨ Gᴀᴍᴇs:
-• /flip <amount> <h/t> — 🏀 Basketball flip
-• /dice <amount> <1-6> — 🎲 Dice roll
-• /slots <amount> — 🎰 Play slots
-• /color <red/green> <amount> — 🎯 Color prediction
+✨ <b>Gᴀᴍᴇs:</b>
+• <b>/flip</b> &lt;amount&gt; &lt;h/t&gt; — 🏀 Basketball flip  
+• <b>/dice</b> &lt;amount&gt; &lt;1-6&gt; — 🎲 Dice roll  
+• <b>/slots</b> &lt;amount&gt; — 🎰 Play slots  
+• <b>/color</b> &lt;red/green&gt; &lt;amount&gt; — 🎯 Color prediction  
 
-🌟 Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ:
-• /top — Leaderboard
-• /toprich — Top 10 richest players
+🌟 <b>Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ:</b>
+• <b>/top</b> — Leaderboard  
+• <b>/toprich</b> — Top 10 richest players  
 
-🏦 Eᴄᴏɴᴏᴍʏ:
-• /taxpool — Total collected tax dekho
-• /jackpot — Global jackpot amount dekho
+🏦 <b>Eᴄᴏɴᴏᴍʏ:</b>
+• <b>/taxpool</b> — Total collected tax dekho  
+• <b>/jackpot</b> — Global jackpot amount dekho  
 
-😡 Max bet per game: $1,000,000
+😡 <b>Max bet per game:</b> $1,000,000
 """
 
-    await update.message.reply_text(text)
+    await update.message.reply_text(text, parse_mode="HTML")
 
 # =========================
 # HELP
@@ -506,36 +507,36 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 @admin_required
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
-        "🎰 Casino God Help\n\n"
+        "🎰 <b>Casino God Help</b>\n\n"
 
-        "💰 Economy\n"
-        "/bal - Check balance\n"
-        "/daily - Claim daily reward\n"
-        "/give - Give coins by reply\n"
-        "/deposit - Deposit to bank\n"
-        "/withdraw - Withdraw from bank\n"
-        "/cashbal - Check wallet and bank\n"
-        "/taxpool - Show total tax pool\n"
-        "/jackpot - Show jackpot amount\n\n"
+        "💰 <b>Economy</b>\n"
+        "• <b>/bal</b> - Check balance\n"
+        "• <b>/daily</b> - Claim daily reward\n"
+        "• <b>/give</b> (reply) - Give coins\n"
+        "• <b>/deposit</b> &lt;amount&gt; - Deposit to bank\n"
+        "• <b>/withdraw</b> &lt;amount&gt; - Withdraw from bank\n"
+        "• <b>/cashbal</b> - Check wallet and bank\n"
+        "• <b>/taxpool</b> - Show total tax pool\n"
+        "• <b>/jackpot</b> - Show jackpot amount\n\n"
 
-        "🎮 Games\n"
-        "/flip - Coin flip game\n"
-        "/dice - Dice game\n"
-        "/slots - Slot machine\n"
-        "/color - Color game\n\n"
+        "🎮 <b>Games</b>\n"
+        "• <b>/flip</b> &lt;amount&gt; - Coin flip game\n"
+        "• <b>/dice</b> &lt;amount&gt; - Dice game\n"
+        "• <b>/slots</b> &lt;amount&gt; - Slot machine\n"
+        "• <b>/color</b> &lt;red/green&gt; &lt;amount&gt; - Color game\n\n"
 
-        "⚔️ Actions\n"
-        "/kill - Kill by reply\n"
-        "/rob - Rob by reply\n"
-        "/protect - Activate protection\n"
-        "/revive - Revive by reply\n\n"
+        "⚔️ <b>Actions</b>\n"
+        "• <b>/kill</b> (reply) - Kill user\n"
+        "• <b>/rob</b> (reply) - Rob user\n"
+        "• <b>/protect</b> - Activate protection\n"
+        "• <b>/revive</b> (reply) - Revive user\n\n"
 
-        "🏆 Ranks\n"
-        "/top - Leaderboard\n"
-        "/toprich - Richest users\n"
+        "🏆 <b>Ranks</b>\n"
+        "• <b>/top</b> - Leaderboard\n"
+        "• <b>/toprich</b> - Richest users\n"
     )
 
-    await update.message.reply_text(text)
+    await update.message.reply_text(text, parse_mode="HTML")
 
 # =========================
 # ECONOMY
@@ -572,17 +573,21 @@ async def bal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         protect_text = "Not active"
 
     text = (
-        f"👑 <a href='tg://user?id={uid}'>{html.escape(target_user.first_name)}</a>\n"
+        f"👑 <b><a href='tg://user?id={uid}'>{html.escape(target_user.first_name)}</a></b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🪙 Coins: ${fmt(coins)}\n"
-        f"🏦 Bank: ${fmt(bank)}\n"
-        f"💀 Kills: {kills}\n"
-        f"🏆 Rank: #{rank}\n"
-        f"🛡 Protection: {protect_text}\n"
+        f"🪙 <b>Coins:</b> ${fmt(coins)}\n"
+        f"🏦 <b>Bank:</b> ${fmt(bank)}\n"
+        f"💀 <b>Kills:</b> {kills}\n"
+        f"🏆 <b>Rank:</b> #{rank}\n"
+        f"🛡 <b>Protection:</b> {protect_text}\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
 
-    await update.message.reply_text(text, parse_mode="HTML")
+    await update.message.reply_text(
+        text,
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
+    )
 
 
 @admin_required
@@ -672,8 +677,12 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_name = html.escape(target_user.first_name)
 
     await update.message.reply_text(
-        f"💸 {sender_name} sent ${fmt(send_amount)} to {target_name}\n"
-        f"🧾 Tax: ${fmt(tax)}"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"💸 <b>{sender_name}</b> sent <b>${fmt(send_amount)}</b> to <b>{target_name}</b>\n"
+    f"🧾 <b>Tax:</b> ${fmt(tax)}",
+    f"━━━━━━━━━━━━━━━━━━━━",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
     )
 
 @admin_required
@@ -681,13 +690,15 @@ async def jackpot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global jackpot_pool
 
     await update.message.reply_text(
-        f"🎰 GLOBAL JACKPOT\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"💎 Jackpot: ${fmt(jackpot_pool)}\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🌍 Yeh jackpot sab players ke liye open hai\n"
-        f"⚔️ Khelte raho, mauka kabhi bhi mil sakta hai\n"
-        f"━━━━━━━━━━━━━━━━━━━━"
+    f"🎰 <b>GLOBAL JACKPOT</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"💎 <b>Jackpot:</b> ${fmt(jackpot_pool)}\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"🌍 Yeh jackpot sab players ke liye open hai\n"
+    f"⚔️ Khelte raho, mauka kabhi bhi mil sakta hai\n"
+    f"━━━━━━━━━━━━━━━━━━━━",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
     )
 
 # =========================
@@ -831,10 +842,14 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tax_text = f"⏳ Next tax in {hours}h {minutes}m"
 
     await update.message.reply_text(
-        f"💰 Wallet: ${fmt(coins)}\n"
-        f"🏦 Bank: ${fmt(bank)}\n\n"
-        f"📉 3% tax every 24h\n"
-        f"{tax_text}"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"💰 <b>Wallet:</b> ${fmt(coins)}\n"
+    f"🏦 <b>Bank:</b> ${fmt(bank)}\n\n"
+    f"📉 <b>Bank balance par daily adjustment apply hota hai</b>\n"
+    f"{tax_text}",
+    f"━━━━━━━━━━━━━━━━━━━━",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
     )
 
 @admin_required
@@ -842,10 +857,12 @@ async def taxpool_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global tax_pool
 
     await update.message.reply_text(
-        f"💰 GLOBAL TAX POOL\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🏦 Pool: ${fmt(tax_pool)}\n"
-        f"━━━━━━━━━━━━━━━━━━━━"
+    f"💰 <b>GLOBAL TAX POOL</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"🏦 <b>Pool:</b> ${fmt(tax_pool)}\n"
+    f"━━━━━━━━━━━━━━━━━━━━",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
     )
 
 # =========================
@@ -888,9 +905,11 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = (protect_left % 3600) // 60
 
         return await update.message.reply_text(
+            f"━━━━━━━━━━━━━━━━━━━━\n"
             f"🛡 <a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a> protected hai\n"
             f"❌ Kill block ho gaya\n"
             f"⏳ Protection khatam hogi {hours}h {minutes}m me",
+            f"━━━━━━━━━━━━━━━━━━━━",
             parse_mode="HTML"
         )
 
@@ -906,11 +925,14 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
-        f"💀 KILL SUCCESS\n\n"
-        f"⚔️ <a href='tg://user?id={attacker_user.id}'>{html.escape(attacker_user.first_name)}</a> ne "
-        f"<a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a> ko kill kar diya\n"
-        f"💰 Reward: ${fmt(KILL_REWARD)}",
-        parse_mode="HTML"
+    f"💀 <b>KILL SUCCESS</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"⚔️ <b><a href='tg://user?id={attacker_user.id}'>{html.escape(attacker_user.first_name)}</a></b> ne "
+    f"<b><a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a></b> ko kill kar diya\n"
+    f"💰 <b>Reward:</b> ${fmt(KILL_REWARD)}\n"
+    f"━━━━━━━━━━━━━━━━━━━━",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
     )
 
 
@@ -919,8 +941,9 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.reply_to_message:
         return await update.message.reply_text(
-            "❌ Kisi user ke message par reply karke /rob use karo.",
-            reply_to_message_id=update.message.id
+    "❌ <b>Kisi user ke message par reply karke /kill use karo.</b>",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
         )
 
     robber_user = update.effective_user
@@ -946,18 +969,20 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = (protect_left % 3600) // 60
 
         return await update.message.reply_text(
-            f"🛡 {target_user.first_name} protected hai\n"
-            f"❌ Rob block ho gaya\n"
-            f"⏳ Protection khatam hogi {hours}h {minutes}m me",
-            reply_to_message_id=update.message.id
+    f"🛡 <b>{html.escape(target_user.first_name)} protected hai</b>\n"
+    f"❌ <b>Rob block ho gaya</b>\n"
+    f"⏳ <b>Protection khatam hogi</b> {hours}h {minutes}m me",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
         )
 
     steal = int(int(target.get("coins", 0)) * ROB_PERCENT)
 
     if steal <= 0:
         return await update.message.reply_text(
-            "❌ Target ke paas lootne layak coins nahi hain.",
-            reply_to_message_id=update.message.id
+    "❌ <b>Target ke paas lootne layak coins nahi hain.</b>",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
         )
 
     target["coins"] = int(target.get("coins", 0)) - steal
@@ -971,9 +996,10 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
-        f"💰 ROB SUCCESS\n\n"
-        f"🕵️ {robber_user.first_name} ne {target_user.first_name} se ${fmt(steal)} loot liye",
-        reply_to_message_id=update.message.id
+    f"💰 <b>ROB SUCCESS</b>\n\n"
+    f"🕵️ <b>{html.escape(robber_user.first_name)}</b> ne <b>{html.escape(target_user.first_name)}</b> se <b>${fmt(steal)}</b> loot liye",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
     )
 
 
@@ -991,8 +1017,12 @@ async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = (protect_left % 3600) // 60
 
         return await update.message.reply_text(
-            f"🛡 Tum already protected ho\n"
-            f"⏳ Protection khatam hogi {hours}h {minutes}m me",
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🛡 <b>Tum already protected ho</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"⏳ <b>Protection khatam hogi:</b> {hours}h {minutes}m\n"
+            f"━━━━━━━━━━━━━━━━━━━━",
+            parse_mode="HTML",
             reply_to_message_id=update.message.id
         )
 
@@ -1002,17 +1032,21 @@ async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
-        "🛡 Protection activated for 24 hours",
+        f"🛡 <b>Protection activated</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"⏳ <b>Duration:</b> 24 hours\n"
+        f"━━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML",
         reply_to_message_id=update.message.id
     )
 
 
-@alive_required
 @admin_required
 async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.reply_to_message:
         return await update.message.reply_text(
-            "❌ Kisi dead user ke message par reply karke /revive use karo.",
+            "❌ <b>Reply karke hi /revive use kar sakte ho</b>",
+            parse_mode="HTML",
             reply_to_message_id=update.message.id
         )
 
@@ -1021,13 +1055,15 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not is_dead(user):
         return await update.message.reply_text(
-            "❌ Ye user dead nahi hai",
+            "❌ <b>Ye user dead nahi hai</b>",
+            parse_mode="HTML",
             reply_to_message_id=update.message.id
         )
 
     if int(user.get("coins", 0)) < REVIVE_COST:
         return await update.message.reply_text(
-            "❌ Revive ke liye coins nahi hain",
+            "❌ <b>Revive ke liye enough coins nahi hai</b>",
+            parse_mode="HTML",
             reply_to_message_id=update.message.id
         )
 
@@ -1038,8 +1074,16 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
-        f"❤️ {target_user.first_name} revive ho gaya",
+        f"❤️ <b>{html.escape(target_user.first_name)} revive ho gaya</b>\n"
+        f"💸 <b>Cost:</b> ${fmt(REVIVE_COST)}",
+        parse_mode="HTML",
         reply_to_message_id=update.message.id
+        )
+
+    await update.message.reply_text(
+    f"❤️ <b>{html.escape(target_user.first_name)} revive ho gaya</b>",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
     )
      
 # =========================
@@ -1048,12 +1092,12 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def win_message(user, emoji, result, pick, amount):
     return f"""
-✨ {emoji} SAHI! YOU WON!
+✨ {emoji} <b>SAHI! YOU WON!</b>
 ━━━━━━━━━━━━━━━━━━━━━
-{emoji} Result: {result}
-✅ Tera pick: {pick}
+{emoji} <b>Result:</b> {result}
+✅ <b>Tera pick:</b> {pick}
 
-🪙 Jeet: +${fmt(amount)}
+🪙 <b>Jeet:</b> +${fmt(amount)}
 
 👑 Lucky ho <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 🔥
 """
@@ -1061,12 +1105,12 @@ def win_message(user, emoji, result, pick, amount):
 
 def lose_message(user, emoji, result, pick, amount):
     return f"""
-💀 {emoji} GALAT! HAARA!
+💀 {emoji} <b>GALAT! HAARA!</b>
 ━━━━━━━━━━━━━━━━━━━━━
-{emoji} Result: {result}
-❌ Tera pick: {pick}
+{emoji} <b>Result:</b> {result}
+❌ <b>Tera pick:</b> {pick}
 
-😔 Nuksan: -${fmt(amount)}
+😔 <b>Nuksan:</b> -${fmt(amount)}
 
 👑 <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 💸
 """
