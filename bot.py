@@ -679,7 +679,7 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
     f"━━━━━━━━━━━━━━━━━━━━\n"
     f"💸 <b>{sender_name}</b> sent <b>${fmt(send_amount)}</b> to <b>{target_name}</b>\n"
-    f"🧾 <b>Tax:</b> ${fmt(tax)}",
+    f"🧾 <b>Tax:</b> ${fmt(tax)}\n"
     f"━━━━━━━━━━━━━━━━━━━━",
     parse_mode="HTML",
     reply_to_message_id=update.message.id
