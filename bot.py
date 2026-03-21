@@ -74,14 +74,13 @@ def get_conn():
 
 
 def init_db():
-    global tax_pool
-
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     uid TEXT PRIMARY KEY,
                     name TEXT DEFAULT 'User',
+                    username TEXT DEFAULT '',
                     coins BIGINT DEFAULT 0,
                     bank BIGINT DEFAULT 0,
                     kills BIGINT DEFAULT 0,
@@ -112,6 +111,11 @@ def init_db():
             """)
 
             cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS username TEXT DEFAULT ''
+            """)
+
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS bot_meta (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
@@ -123,11 +127,6 @@ def init_db():
                 VALUES ('tax_pool', '0')
                 ON CONFLICT (key) DO NOTHING
             """)
-            
-            cur.execute("""
-    ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS username TEXT DEFAULT ''
-""")
 
         conn.commit()
 
@@ -332,6 +331,7 @@ def check_bet(u, bet):
 
 
 init_db()
+tax_pool = get_tax_pool()
 
 # =========================
 # ADMIN CHECK SYSTEM
