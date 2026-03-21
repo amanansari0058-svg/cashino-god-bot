@@ -846,7 +846,7 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     f"💰 <b>Wallet:</b> ${fmt(coins)}\n"
     f"🏦 <b>Bank:</b> ${fmt(bank)}\n\n"
     f"📉 <b>Bank balance par daily adjustment apply hota hai</b>\n"
-    f"{tax_text}",
+    f"{tax_text}\n"
     f"━━━━━━━━━━━━━━━━━━━━",
     parse_mode="HTML",
     reply_to_message_id=update.message.id
