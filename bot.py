@@ -410,12 +410,13 @@ def admin_required(func):
                 await asyncio.to_thread(save)
 
                 return await update.message.reply_text(
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🚨 Spam detected bhai\n"
-                    f"💸 Penalty: -${fmt(deducted)}\n"
-                    f"⚠️ Offence #{level} Penalty Double Har Bar\n"
-                    f"🧘 Aaram se bhai spam nhi kro 🤡\n"
-                    f"━━━━━━━━━━━━━━━━━━━━"
+    f"🚨 <b>Spam detected bhai</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"💸 <b>Penalty:</b> -${fmt(deducted)}\n"
+    f"⚠️ <b>Offence #{level}</b> Penalty Double Har Bar\n"
+    f"🧘 Aaram se bhai spam nhi kro 🤡\n"
+    f"━━━━━━━━━━━━━━━━━━━━",
+    parse_mode="HTML"
                 )
 
             # normal command allowed
@@ -683,6 +684,9 @@ async def jackpot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎰 GLOBAL JACKPOT\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"💎 Jackpot: ${fmt(jackpot_pool)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🌍 Yeh jackpot sab players ke liye open hai\n"
+        f"⚔️ Khelte raho, mauka kabhi bhi mil sakta hai\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
 
@@ -690,7 +694,7 @@ async def jackpot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # BANK SETTINGS
 # =========================
 
-MAX_BANK = 1_000_000_000
+MAX_BANK = 5_000_000_000
 BANK_TAX_RATE = 0.03
 BANK_TAX_TIME = 86400  # 1 day
 
@@ -755,7 +759,17 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await save_user_async(uid, u)
     await asyncio.to_thread(save)
 
-    await update.message.reply_text(f"🏦 Deposited ${fmt(amount)}")
+    await update.message.reply_text(
+    f"🏦 <b>DEPOSIT SUCCESS</b>\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"💰 <b>Amount Deposited:</b> ${fmt(amount)}\n"
+    f"━━━━━━━━━━━━━━━━━━━━\n"
+    f"📊 Bank funds time ke sath adjust hote rahenge\n"
+    f"⏳ Long term hold me difference dekhne ko milega\n"
+    f"━━━━━━━━━━━━━━━━━━━━",
+    parse_mode="HTML",
+    reply_to_message_id=update.message.id
+    )
 
 
 @alive_required
