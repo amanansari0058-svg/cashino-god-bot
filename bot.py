@@ -37,6 +37,8 @@ START_COINS = 0
 DAILY_COOLDOWN = 86400
 DAILY_REWARD = 5000
 
+tax_pool = 0
+
 KILL_REWARD = 500
 REVIVE_COST = 500
 
@@ -55,7 +57,7 @@ MAX_BET = 1000000
 
 spam_tracker = {}
 
-SPAM_COOLDOWN = 2.0
+SPAM_COOLDOWN = 2.5
 SPAM_RESET_TIME = 5.0
 SPAM_BASE_PENALTY = 500
 
@@ -128,7 +130,6 @@ def init_db():
 
         conn.commit()
 
-    tax_pool = get_tax_pool()
 
 def get_tax_pool():
     with get_conn() as conn:
@@ -798,6 +799,17 @@ async def cashbal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🏦 Bank: ${fmt(bank)}\n\n"
         f"📉 3% tax every 24h\n"
         f"{tax_text}"
+    )
+
+@admin_required
+async def taxpool_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global tax_pool
+
+    await update.message.reply_text(
+        f"💰 GLOBAL TAX POOL\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🏦 Pool: ${fmt(tax_pool)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━"
     )
 
 # =========================
@@ -1764,6 +1776,7 @@ app.add_handler(CommandHandler("give", give))
 app.add_handler(CommandHandler("deposit", deposit))
 app.add_handler(CommandHandler("withdraw", withdraw))
 app.add_handler(CommandHandler("cashbal", cashbal))
+app.add_handler(CommandHandler("taxpool", taxpool_cmd))
 
 app.add_handler(CommandHandler("kill", kill))
 app.add_handler(CommandHandler("rob", rob))
