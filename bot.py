@@ -38,6 +38,7 @@ DAILY_COOLDOWN = 86400
 DAILY_REWARD = 5000
 
 tax_pool = 0
+jackpot_pool = 922337203685477
 
 KILL_REWARD = 500
 REVIVE_COST = 500
@@ -485,13 +486,17 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 • /color <red/green> <amount> — 🎯 Color prediction
 
 🌟 Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ:
+• /top — Leaderboard
 • /toprich — Top 10 richest players
+
+🏦 Eᴄᴏɴᴏᴍʏ:
+• /taxpool — Total collected tax dekho
+• /jackpot — Global jackpot amount dekho
 
 😡 Max bet per game: $1,000,000
 """
 
     await update.message.reply_text(text)
-
 
 # =========================
 # HELP
@@ -501,23 +506,29 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "🎰 Casino God Help\n\n"
+
         "💰 Economy\n"
         "/bal - Check balance\n"
         "/daily - Claim daily reward\n"
         "/give - Give coins by reply\n"
         "/deposit - Deposit to bank\n"
         "/withdraw - Withdraw from bank\n"
-        "/cashbal - Check wallet and bank\n\n"
+        "/cashbal - Check wallet and bank\n"
+        "/taxpool - Show total tax pool\n"
+        "/jackpot - Show jackpot amount\n\n"
+
         "🎮 Games\n"
         "/flip - Coin flip game\n"
         "/dice - Dice game\n"
         "/slots - Slot machine\n"
         "/color - Color game\n\n"
+
         "⚔️ Actions\n"
         "/kill - Kill by reply\n"
         "/rob - Rob by reply\n"
         "/protect - Activate protection\n"
         "/revive - Revive by reply\n\n"
+
         "🏆 Ranks\n"
         "/top - Leaderboard\n"
         "/toprich - Richest users\n"
@@ -662,6 +673,17 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"💸 {sender_name} sent ${fmt(send_amount)} to {target_name}\n"
         f"🧾 Tax: ${fmt(tax)}"
+    )
+
+@admin_required
+async def jackpot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global jackpot_pool
+
+    await update.message.reply_text(
+        f"🎰 GLOBAL JACKPOT\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💎 Jackpot: ${fmt(jackpot_pool)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━"
     )
 
 # =========================
@@ -1776,7 +1798,9 @@ app.add_handler(CommandHandler("give", give))
 app.add_handler(CommandHandler("deposit", deposit))
 app.add_handler(CommandHandler("withdraw", withdraw))
 app.add_handler(CommandHandler("cashbal", cashbal))
+
 app.add_handler(CommandHandler("taxpool", taxpool_cmd))
+app.add_handler(CommandHandler("jackpot", jackpot_cmd))
 
 app.add_handler(CommandHandler("kill", kill))
 app.add_handler(CommandHandler("rob", rob))
