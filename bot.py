@@ -38,7 +38,7 @@ DAILY_COOLDOWN = 86400
 DAILY_REWARD = 5000
 
 tax_pool = 0
-jackpot_pool = 922337203685477
+jackpot_pool = 99922337203685477
 
 KILL_REWARD = 500
 REVIVE_COST = 500
@@ -369,8 +369,8 @@ def admin_required(func):
             # ✅ SAFE COMMANDS
             safe_commands = [
                 "/start", "/help",
-                "/top", "/toprich",
-                "/bal", "/cashbal",
+                "/top", "/toprich", "/taxpool",
+                "/bal", "/cashbal", "/jackpot",
                 "/daily", "/deposit", "/withdraw",
                 "/protect", "/revive", "/give"
             ]
