@@ -26,6 +26,9 @@ from telegram.ext import (
 
 user_cache = {}
 
+pending_duels = {}
+active_duels = {}
+
 # =========================
 # CONFIG
 # =========================
@@ -51,6 +54,10 @@ KILL_COOLDOWN = 300
 
 MIN_BET = 100
 MAX_BET = 1000000
+
+DUEL_TIMEOUT = 30
+DUEL_ANSWER_TIMEOUT = 20
+DUEL_START_DELAY = 2
 
 # =========================
 # SPAM SYSTEM
@@ -330,6 +337,117 @@ def check_bet(u, bet):
     return None
 
 
+def get_duel_key(chat_id):
+    return str(chat_id)
+
+
+def clear_duel(chat_id):
+    key = get_duel_key(chat_id)
+    pending_duels.pop(key, None)
+    active_duels.pop(key, None)
+
+
+def normalize_duel_answer(text: str) -> str:
+    return text.strip().lower()
+
+
+def generate_duel_task():
+    task_type = random.choice(["math", "word", "reverse", "upper"])
+
+    if task_type == "math":
+        a = random.randint(10, 99)
+        b = random.randint(10, 99)
+        prompt = f"🧠 <b>Math Duel</b>\nSolve karo: <b>{a} + {b}</b>"
+        answer = str(a + b)
+        return prompt, answer
+
+    if task_type == "word":
+        word = random.choice(["shadow", "legend", "casino", "thunder", "rocket", "winner"])
+        prompt = f"⌨️ <b>Type Duel</b>\nYe word exactly type karo: <b>{word}</b>"
+        answer = word
+        return prompt, answer
+
+    if task_type == "reverse":
+        word = random.choice(["dragon", "silver", "hunter", "combat", "ticket", "future"])
+        rev = word[::-1]
+        prompt = f"🔁 <b>Reverse Duel</b>\nIs word ko reverse karke bhejo: <b>{word}</b>"
+        answer = rev
+        return prompt, answer
+
+    if task_type == "upper":
+        word = random.choice(["strike", "vision", "system", "bonus", "target", "ranger"])
+        prompt = f"🔠 <b>Case Duel</b>\nIs word ko <b>UPPERCASE</b> me bhejo: <b>{word}</b>"
+        answer = word.upper().lower()  # normalize ke liye lower store karenge
+        return prompt, answer
+
+
+async def expire_pending_duel(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    await asyncio.sleep(DUEL_TIMEOUT)
+
+    key = get_duel_key(chat_id)
+    duel = pending_duels.get(key)
+
+    if not duel:
+        return
+
+    clear_duel(chat_id)
+
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                "⚔️ <b>Duel request expire ho gaya</b>\n"
+                "Kisi ne time pe accept nahi kiya"
+            ),
+            parse_mode="HTML"
+        )
+    except:
+        pass
+
+
+async def expire_active_duel(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    global jackpot_pool
+
+    await asyncio.sleep(DUEL_ANSWER_TIMEOUT)
+
+    key = get_duel_key(chat_id)
+    duel = active_duels.get(key)
+
+    if not duel:
+        return
+
+    challenger = await load_user(duel["challenger_id"])
+    accepter = await load_user(duel["acceptor_id"])
+
+    amount = duel["amount"]
+
+    challenger["coins"] = int(challenger.get("coins", 0)) + amount
+    accepter["coins"] = int(accepter.get("coins", 0)) + amount
+
+    jackpot_pool += duel["jackpot_bonus"]
+
+    await asyncio.gather(
+        save_user_async(duel["challenger_id"], challenger),
+        save_user_async(duel["acceptor_id"], accepter)
+    )
+    await asyncio.to_thread(save)
+
+    clear_duel(chat_id)
+
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                f"⌛ <b>Duel timeout ho gaya</b>\n"
+                f"💰 Dono players ko <b>${fmt(amount)}</b> refund kar diye gaye\n"
+                f"🎰 Jackpot bonus <b>${fmt(duel['jackpot_bonus'])}</b> pool me wapas chala gaya"
+            ),
+            parse_mode="HTML"
+        )
+    except:
+        pass
+
+
 init_db()
 tax_pool = get_tax_pool()
 
@@ -487,6 +605,9 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 • <b>/slots</b> &lt;amount&gt; — 🎰 Play slots  
 • <b>/color</b> &lt;red/green&gt; &lt;amount&gt; — 🎯 Color prediction  
 
+⚔️ <b>Dᴜᴇʟ Cᴏᴍᴍᴀɴᴅ:</b>
+• <b>/duel</b> &lt;amount&gt; — Skill based duel challenge khelo ⚡
+
 🌟 <b>Lᴇᴀᴅᴇʀʙᴏᴀʀᴅ:</b>
 • <b>/top</b> — Leaderboard  
 • <b>/toprich</b> — Top 10 richest players  
@@ -520,10 +641,11 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• <b>/jackpot</b> - Show jackpot amount\n\n"
 
         "🎮 <b>Games</b>\n"
-        "• <b>/flip</b> &lt;amount&gt; - Coin flip game\n"
-        "• <b>/dice</b> &lt;amount&gt; - Dice game\n"
-        "• <b>/slots</b> &lt;amount&gt; - Slot machine\n"
-        "• <b>/color</b> &lt;red/green&gt; &lt;amount&gt; - Color game\n\n"
+"• <b>/flip</b> &lt;amount&gt; - Coin flip\n"
+"• <b>/dice</b> &lt;amount&gt; - Dice game\n"
+"• <b>/slots</b> &lt;amount&gt; - Slots\n"
+"• <b>/color</b> &lt;red/green&gt; &lt;amount&gt; - Color game\n\n"
+"• <b>/duel</b> &lt;amount&gt; - Skill duel \n\n"
 
         "⚔️ <b>Actions</b>\n"
         "• <b>/kill</b> (reply) - Kill user\n"
@@ -1387,7 +1509,234 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text,
         parse_mode="HTML",
         reply_to_message_id=update.message.id
-        )        
+        )  
+
+
+@alive_required
+@admin_required
+async def duel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) < 1:
+        return await update.message.reply_text(
+            "❌ <b>Usage:</b> /duel &lt;amount&gt;",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
+        )
+
+    challenger_user = update.effective_user
+    chat_id = update.effective_chat.id
+    key = get_duel_key(chat_id)
+
+    if key in pending_duels or key in active_duels:
+        return await update.message.reply_text(
+            "❌ <b>Is chat me already ek duel chal raha hai</b>",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
+        )
+
+    try:
+        amount = int(context.args[0])
+    except:
+        return await update.message.reply_text(
+            "❌ <b>Invalid amount</b>",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
+        )
+
+    if amount <= 0:
+        return await update.message.reply_text(
+            "❌ <b>Amount 0 se bada hona chahiye</b>",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
+        )
+
+    if amount > MAX_BET:
+        return await update.message.reply_text(
+            f"❌ <b>Max duel bet:</b> ${fmt(MAX_BET)}",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
+        )
+
+    challenger = await load_user(challenger_user.id)
+
+    if int(challenger.get("coins", 0)) < amount:
+        return await update.message.reply_text(
+            "❌ <b>Not enough coins</b>",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
+        )
+
+    pending_duels[key] = {
+        "challenger_id": challenger_user.id,
+        "challenger_name": challenger_user.first_name,
+        "amount": amount
+    }
+
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("⚔️ Accept Duel", callback_data=f"duel_accept:{chat_id}")
+    ]])
+
+    await update.message.reply_text(
+        f"⚔️ <b>SKILL DUEL CHALLENGE</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>{html.escape(challenger_user.first_name)}</b> ne <b>${fmt(amount)}</b> ka duel khola hai\n"
+        f"🎯 Accept karte hi random skill task aayega\n"
+        f"⏳ {DUEL_TIMEOUT} sec ke andar accept karo\n"
+        f"━━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML",
+        reply_markup=keyboard,
+        reply_to_message_id=update.message.id
+    )
+
+    asyncio.create_task(expire_pending_duel(context, chat_id))
+
+# =========================
+# DUEL HANDLER
+# =========================
+
+async def duel_accept_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global jackpot_pool
+
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+    if not data.startswith("duel_accept:"):
+        return
+
+    chat_id = int(data.split(":")[1])
+    key = get_duel_key(chat_id)
+
+    if key not in pending_duels:
+        return await query.edit_message_text(
+            "❌ <b>Ye duel ab active nahi hai</b>",
+            parse_mode="HTML"
+        )
+
+    duel = pending_duels[key]
+    accepter_user = query.from_user
+
+    if accepter_user.id == duel["challenger_id"]:
+        return await query.answer("Apna hi duel accept nahi kar sakte", show_alert=True)
+
+    challenger, accepter = await asyncio.gather(
+        load_user(duel["challenger_id"]),
+        load_user(accepter_user.id)
+    )
+
+    amount = duel["amount"]
+
+    if int(challenger.get("coins", 0)) < amount:
+        clear_duel(chat_id)
+        return await query.edit_message_text(
+            "❌ <b>Challenger ke paas enough coins nahi bache</b>",
+            parse_mode="HTML"
+        )
+
+    if int(accepter.get("coins", 0)) < amount:
+        return await query.answer("Tumhare paas enough coins nahi hain", show_alert=True)
+
+    challenger["coins"] = int(challenger.get("coins", 0)) - amount
+    accepter["coins"] = int(accepter.get("coins", 0)) - amount
+
+    pot = amount * 2
+    jackpot_bonus = min(jackpot_pool, pot)
+    jackpot_pool -= jackpot_bonus
+    total_prize = pot + jackpot_bonus
+
+    await asyncio.gather(
+        save_user_async(duel["challenger_id"], challenger),
+        save_user_async(accepter_user.id, accepter)
+    )
+    await asyncio.to_thread(save)
+
+    prompt, answer = generate_duel_task()
+
+    pending_duels.pop(key, None)
+
+    active_duels[key] = {
+        "challenger_id": duel["challenger_id"],
+        "challenger_name": duel["challenger_name"],
+        "acceptor_id": accepter_user.id,
+        "acceptor_name": accepter_user.first_name,
+        "amount": amount,
+        "pot": pot,
+        "jackpot_bonus": jackpot_bonus,
+        "total_prize": total_prize,
+        "answer": normalize_duel_answer(answer)
+    }
+
+    await query.edit_message_text(
+        f"⚔️ <b>DUEL ACCEPTED</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>{html.escape(duel['challenger_name'])}</b> vs <b>{html.escape(accepter_user.first_name)}</b>\n"
+        f"💰 <b>Base Prize:</b> ${fmt(pot)}\n"
+        f"🎰 <b>Jackpot Boost:</b> ${fmt(jackpot_bonus)}\n"
+        f"🏆 <b>Total Prize:</b> ${fmt(total_prize)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML"
+    )
+
+    await asyncio.sleep(DUEL_START_DELAY)
+
+    if key not in active_duels:
+        return
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=(
+            f"🧠 <b>SKILL TASK</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"{prompt}\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"⚡ Jo sabse pehle <b>normal text</b> me sahi jawab bhejega wahi jeetega"
+        ),
+        parse_mode="HTML"
+    )
+
+    asyncio.create_task(expire_active_duel(context, chat_id))
+
+
+async def duel_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+
+    chat_id = update.effective_chat.id
+    key = get_duel_key(chat_id)
+
+    if key not in active_duels:
+        return
+
+    duel = active_duels[key]
+    user_id = update.effective_user.id
+
+    if user_id not in [duel["challenger_id"], duel["acceptor_id"]]:
+        return
+
+    user_answer = normalize_duel_answer(update.message.text)
+
+    if user_answer != duel["answer"]:
+        return
+
+    winner = await load_user(user_id)
+    winner["coins"] = int(winner.get("coins", 0)) + duel["total_prize"]
+
+    await save_user_async(user_id, winner)
+    await asyncio.to_thread(save)
+
+    winner_name = html.escape(update.effective_user.first_name)
+
+    clear_duel(chat_id)
+
+    await update.message.reply_text(
+        f"🏆 <b>DUEL WINNER</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ <b>{winner_name}</b> ne sabse pehle sahi jawab diya\n"
+        f"💰 <b>Prize Won:</b> ${fmt(duel['total_prize'])}\n"
+        f"🎰 <b>Jackpot Bonus Included:</b> ${fmt(duel['jackpot_bonus'])}\n"
+        f"━━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
+    )
 
 # =========================
 # LEADERBOARD
@@ -1873,12 +2222,17 @@ app.add_handler(CommandHandler("color", color))
 app.add_handler(CommandHandler("top", top))
 app.add_handler(CommandHandler("toprich", toprich))
 
+# 🔥 DUEL SYSTEM
+app.add_handler(CommandHandler("duel", duel))
+app.add_handler(CallbackQueryHandler(duel_accept_callback, pattern=r"^duel_accept:"))
+app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), duel_answer_handler), group=0)
+
 # NEW OWNER PANEL
 app.add_handler(CommandHandler("panel", panel))
 app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin:"))
 
 # ALWAYS LAST
-app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), admin_panel_text))
+app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), admin_panel_text), group=1)
 
 print("God Economy Bot started...")
 print("STARTING POLLING")
