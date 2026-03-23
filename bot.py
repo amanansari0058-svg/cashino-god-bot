@@ -82,50 +82,6 @@ def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
-def build_duel_tasks():
-    global DUEL_TASK_POOL
-
-    import random
-
-    task_pool = []
-
-    # math add
-    for a in range(10, 30):
-        for b in range(10, 30):
-            task_pool.append((
-                f"add_{a}_{b}",
-                f"🧠 <b>Math Duel</b>\nSolve: <b>{a} + {b}</b>",
-                str(a + b)
-            ))
-
-    # words
-    words = ["shadow", "legend", "casino", "thunder", "rocket", "winner"]
-    for w in words:
-        task_pool.append((
-            f"type_{w}",
-            f"⌨️ <b>Type Duel</b>\nType karo: <b>{w}</b>",
-            w
-        ))
-
-    # reverse
-    for w in ["dragon", "silver", "combat", "future"]:
-        task_pool.append((
-            f"rev_{w}",
-            f"🔁 <b>Reverse Duel</b>\nReverse karo: <b>{w}</b>",
-            w[::-1]
-        ))
-
-    # vowel
-    for w in ["education", "operation", "aviation"]:
-        count = sum(1 for c in w if c in "aeiou")
-        task_pool.append((
-            f"vowel_{w}",
-            f"🗣 <b>Vowel Duel</b>\nCount vowels: <b>{w}</b>",
-            str(count)
-        ))
-
-    DUEL_TASK_POOL = task_pool
-
 
 def init_db():
     with get_conn() as conn:
@@ -460,7 +416,7 @@ def generate_duel_task():
     ]
     for word in upper_words:
         prompt = f"🔠 <b>Case Duel</b>\nIs word ko <b>UPPERCASE</b> me bhejo: <b>{word}</b>"
-        answer = word.lower()  # normalize_duel_answer ke liye
+        answer = word.lower()
         task_id = f"upper_{word}"
         task_pool.append((task_id, prompt, answer))
 
@@ -475,6 +431,107 @@ def generate_duel_task():
         task_id = f"lower_{word}"
         task_pool.append((task_id, prompt, answer))
 
+    # 8) Number sort
+    for _ in range(8):
+        nums = random.sample(range(1, 10), 4)
+        prompt = (
+            f"🔢 <b>Sort Duel</b>\n"
+            f"In numbers ko ascending order me bhejo: <b>{' '.join(map(str, nums))}</b>\n"
+            f"Format: 1 2 3 4"
+        )
+        answer = " ".join(map(str, sorted(nums)))
+        task_id = f"sort_{'_'.join(map(str, nums))}"
+        task_pool.append((task_id, prompt, answer))
+
+    # 9) Vowel count
+    vowel_words = ["education", "operation", "aviation", "equation", "universe"]
+    for word in vowel_words:
+        count = sum(1 for ch in word.lower() if ch in "aeiou")
+        prompt = f"🗣 <b>Vowel Duel</b>\nIs word me vowels kitne hain: <b>{word}</b>"
+        answer = str(count)
+        task_id = f"vowel_{word}"
+        task_pool.append((task_id, prompt, answer))
+
+    available_tasks = [task for task in task_pool if task[0] not in recent_duel_tasks]
+
+    if not available_tasks:
+        recent_duel_tasks = []
+        available_tasks = task_pool[:]
+
+    task_id, prompt, answer = random.choice(available_tasks)
+
+    recent_duel_tasks.append(task_id)
+    if len(recent_duel_tasks) > MAX_RECENT_DUEL_TASKS:
+        recent_duel_tasks.pop(0)
+
+    return prompt, answer
+
+
+async def expire_pending_duel(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    await asyncio.sleep(DUEL_TIMEOUT)
+
+    key = get_duel_key(chat_id)
+    duel = pending_duels.get(key)
+
+    if not duel:
+        return
+
+    clear_duel(chat_id)
+
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                "⚔️ <b>Duel request expire ho gaya</b>\n"
+                "Kisi ne time pe accept nahi kiya"
+            ),
+            parse_mode="HTML"
+        )
+    except:
+        pass
+
+
+async def expire_active_duel(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+    global jackpot_pool
+
+    await asyncio.sleep(DUEL_ANSWER_TIMEOUT)
+
+    key = get_duel_key(chat_id)
+    duel = active_duels.get(key)
+
+    if not duel:
+        return
+
+    challenger = await load_user(duel["challenger_id"])
+    accepter = await load_user(duel["acceptor_id"])
+
+    amount = duel["amount"]
+
+    challenger["coins"] = int(challenger.get("coins", 0)) + amount
+    accepter["coins"] = int(accepter.get("coins", 0)) + amount
+
+    jackpot_pool += duel["jackpot_bonus"]
+
+    await asyncio.gather(
+        save_user_async(duel["challenger_id"], challenger),
+        save_user_async(duel["acceptor_id"], accepter)
+    )
+    await asyncio.to_thread(save)
+
+    clear_duel(chat_id)
+
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                f"⌛ <b>Duel timeout ho gaya</b>\n"
+                f"💰 Dono players ko <b>${fmt(amount)}</b> refund kar diye gaye\n"
+                f"🎰 Jackpot bonus <b>${fmt(duel['jackpot_bonus'])}</b> pool me wapas chala gaya"
+            ),
+            parse_mode="HTML"
+        )
+    except:
+        pass
 
 
 init_db()
