@@ -434,6 +434,7 @@ def generate_duel_task():
 
 init_db()
 tax_pool = get_tax_pool()
+build_duel_tasks()
 
 # =========================
 # ADMIN CHECK SYSTEM
