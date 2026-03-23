@@ -28,6 +28,8 @@ user_cache = {}
 
 pending_duels = {}
 active_duels = {}
+recent_duel_tasks = []
+MAX_RECENT_DUEL_TASKS = 8
 
 # =========================
 # CONFIG
@@ -352,100 +354,82 @@ def normalize_duel_answer(text: str) -> str:
 
 
 def generate_duel_task():
-    task_type = random.choice(["math", "word", "reverse", "upper"])
+    global recent_duel_tasks
 
-    if task_type == "math":
+    task_pool = []
+
+    # 1) Math add
+    for _ in range(8):
         a = random.randint(10, 99)
         b = random.randint(10, 99)
         prompt = f"🧠 <b>Math Duel</b>\nSolve karo: <b>{a} + {b}</b>"
         answer = str(a + b)
-        return prompt, answer
+        task_id = f"math_add_{a}_{b}"
+        task_pool.append((task_id, prompt, answer))
 
-    if task_type == "word":
-        word = random.choice(["shadow", "legend", "casino", "thunder", "rocket", "winner"])
+    # 2) Subtract
+    for _ in range(8):
+        a = random.randint(50, 150)
+        b = random.randint(10, 49)
+        prompt = f"➖ <b>Math Duel</b>\nSolve karo: <b>{a} - {b}</b>"
+        answer = str(a - b)
+        task_id = f"math_sub_{a}_{b}"
+        task_pool.append((task_id, prompt, answer))
+
+    # 3) Multiply
+    for _ in range(8):
+        a = random.randint(2, 12)
+        b = random.randint(2, 12)
+        prompt = f"✖️ <b>Multiply Duel</b>\nSolve karo: <b>{a} × {b}</b>"
+        answer = str(a * b)
+        task_id = f"math_mul_{a}_{b}"
+        task_pool.append((task_id, prompt, answer))
+
+    # 4) Exact type
+    words = [
+        "shadow", "legend", "casino", "thunder", "rocket", "winner",
+        "phoenix", "sniper", "blazer", "crimson", "monster", "diamond",
+        "venom", "battle", "hunter", "future", "storm", "ghost"
+    ]
+    for word in words:
         prompt = f"⌨️ <b>Type Duel</b>\nYe word exactly type karo: <b>{word}</b>"
         answer = word
-        return prompt, answer
+        task_id = f"type_{word}"
+        task_pool.append((task_id, prompt, answer))
 
-    if task_type == "reverse":
-        word = random.choice(["dragon", "silver", "hunter", "combat", "ticket", "future"])
-        rev = word[::-1]
+    # 5) Reverse
+    rev_words = [
+        "dragon", "silver", "combat", "ticket", "future", "vision",
+        "empire", "danger", "target", "ranger", "meteor", "blaster"
+    ]
+    for word in rev_words:
         prompt = f"🔁 <b>Reverse Duel</b>\nIs word ko reverse karke bhejo: <b>{word}</b>"
-        answer = rev
-        return prompt, answer
+        answer = word[::-1]
+        task_id = f"reverse_{word}"
+        task_pool.append((task_id, prompt, answer))
 
-    if task_type == "upper":
-        word = random.choice(["strike", "vision", "system", "bonus", "target", "ranger"])
+    # 6) Uppercase
+    upper_words = [
+        "strike", "system", "bonus", "galaxy", "falcon", "sniper",
+        "trophy", "winner", "action", "danger", "matrix", "gamer"
+    ]
+    for word in upper_words:
         prompt = f"🔠 <b>Case Duel</b>\nIs word ko <b>UPPERCASE</b> me bhejo: <b>{word}</b>"
-        answer = word.upper().lower()  # normalize ke liye lower store karenge
-        return prompt, answer
+        answer = word.lower()  # normalize_duel_answer ke liye
+        task_id = f"upper_{word}"
+        task_pool.append((task_id, prompt, answer))
 
+    # 7) Lowercase
+    lower_words = [
+        "KING", "FIRE", "GHOST", "RAGE", "LUCK", "VENOM",
+        "POWER", "BLAZE", "NINJA", "TIGER"
+    ]
+    for word in lower_words:
+        prompt = f"🔡 <b>Case Duel</b>\nIs word ko <b>lowercase</b> me bhejo: <b>{word}</b>"
+        answer = word.lower()
+        task_id = f"lower_{word}"
+        task_pool.append((task_id, prompt, answer))
 
-async def expire_pending_duel(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
-    await asyncio.sleep(DUEL_TIMEOUT)
-
-    key = get_duel_key(chat_id)
-    duel = pending_duels.get(key)
-
-    if not duel:
-        return
-
-    clear_duel(chat_id)
-
-    try:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=(
-                "⚔️ <b>Duel request expire ho gaya</b>\n"
-                "Kisi ne time pe accept nahi kiya"
-            ),
-            parse_mode="HTML"
-        )
-    except:
-        pass
-
-
-async def expire_active_duel(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
-    global jackpot_pool
-
-    await asyncio.sleep(DUEL_ANSWER_TIMEOUT)
-
-    key = get_duel_key(chat_id)
-    duel = active_duels.get(key)
-
-    if not duel:
-        return
-
-    challenger = await load_user(duel["challenger_id"])
-    accepter = await load_user(duel["acceptor_id"])
-
-    amount = duel["amount"]
-
-    challenger["coins"] = int(challenger.get("coins", 0)) + amount
-    accepter["coins"] = int(accepter.get("coins", 0)) + amount
-
-    jackpot_pool += duel["jackpot_bonus"]
-
-    await asyncio.gather(
-        save_user_async(duel["challenger_id"], challenger),
-        save_user_async(duel["acceptor_id"], accepter)
-    )
-    await asyncio.to_thread(save)
-
-    clear_duel(chat_id)
-
-    try:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=(
-                f"⌛ <b>Duel timeout ho gaya</b>\n"
-                f"💰 Dono players ko <b>${fmt(amount)}</b> refund kar diye gaye\n"
-                f"🎰 Jackpot bonus <b>${fmt(duel['jackpot_bonus'])}</b> pool me wapas chala gaya"
-            ),
-            parse_mode="HTML"
-        )
-    except:
-        pass
 
 
 init_db()
@@ -1163,6 +1147,7 @@ async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@alive_required
 @admin_required
 async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.reply_to_message:
@@ -1172,27 +1157,33 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_to_message_id=update.message.id
         )
 
+    reviver_user = update.effective_user
     target_user = update.message.reply_to_message.from_user
-    user = await load_user(target_user.id)
 
-    if not is_dead(user):
+    target = await load_user(target_user.id)
+    reviver = await load_user(reviver_user.id)
+
+    if not is_dead(target):
         return await update.message.reply_text(
             "❌ <b>Ye user dead nahi hai</b>",
             parse_mode="HTML",
             reply_to_message_id=update.message.id
         )
 
-    if int(user.get("coins", 0)) < REVIVE_COST:
+    if int(reviver.get("coins", 0)) < REVIVE_COST:
         return await update.message.reply_text(
             "❌ <b>Revive ke liye enough coins nahi hai</b>",
             parse_mode="HTML",
             reply_to_message_id=update.message.id
         )
 
-    user["coins"] = int(user.get("coins", 0)) - REVIVE_COST
-    user["dead_until"] = 0
+    reviver["coins"] = int(reviver.get("coins", 0)) - REVIVE_COST
+    target["dead_until"] = 0
 
-    await save_user_async(target_user.id, user)
+    await asyncio.gather(
+        save_user_async(reviver_user.id, reviver),
+        save_user_async(target_user.id, target)
+    )
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
@@ -1200,13 +1191,8 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💸 <b>Cost:</b> ${fmt(REVIVE_COST)}",
         parse_mode="HTML",
         reply_to_message_id=update.message.id
-        )
-
-    await update.message.reply_text(
-    f"❤️ <b>{html.escape(target_user.first_name)} revive ho gaya</b>",
-    parse_mode="HTML",
-    reply_to_message_id=update.message.id
     )
+
      
 # =========================
 # GAMES
