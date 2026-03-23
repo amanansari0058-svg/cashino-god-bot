@@ -82,6 +82,51 @@ def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
+def build_duel_tasks():
+    global DUEL_TASK_POOL
+
+    import random
+
+    task_pool = []
+
+    # math add
+    for a in range(10, 30):
+        for b in range(10, 30):
+            task_pool.append((
+                f"add_{a}_{b}",
+                f"🧠 <b>Math Duel</b>\nSolve: <b>{a} + {b}</b>",
+                str(a + b)
+            ))
+
+    # words
+    words = ["shadow", "legend", "casino", "thunder", "rocket", "winner"]
+    for w in words:
+        task_pool.append((
+            f"type_{w}",
+            f"⌨️ <b>Type Duel</b>\nType karo: <b>{w}</b>",
+            w
+        ))
+
+    # reverse
+    for w in ["dragon", "silver", "combat", "future"]:
+        task_pool.append((
+            f"rev_{w}",
+            f"🔁 <b>Reverse Duel</b>\nReverse karo: <b>{w}</b>",
+            w[::-1]
+        ))
+
+    # vowel
+    for w in ["education", "operation", "aviation"]:
+        count = sum(1 for c in w if c in "aeiou")
+        task_pool.append((
+            f"vowel_{w}",
+            f"🗣 <b>Vowel Duel</b>\nCount vowels: <b>{w}</b>",
+            str(count)
+        ))
+
+    DUEL_TASK_POOL = task_pool
+
+
 def init_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
