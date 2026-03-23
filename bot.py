@@ -536,7 +536,6 @@ async def expire_active_duel(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
 
 init_db()
 tax_pool = get_tax_pool()
-build_duel_tasks()
 
 # =========================
 # ADMIN CHECK SYSTEM
