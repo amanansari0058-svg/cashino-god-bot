@@ -2233,8 +2233,10 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # =========================
     # ENTER AMOUNT STEP
     # =========================
-    if step == "enter_amount":
+    
+if step == "enter_amount":
         uid = context.user_data.get("admin_selected_uid")
+        action = context.user_data.get("admin_action")
 
         if not uid:
             context.user_data.pop("admin_step", None)
@@ -2248,62 +2250,32 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = get_user_fast(uid)
         name = html.escape(user.get("name", "User"))
 
-if action == "setcoins":
-    user["coins"] = amount
-    save_user(uid, user)
-    await asyncio.to_thread(save)
+        if action == "setcoins":
+            user["coins"] = amount
 
-    context.user_data.pop("admin_step", None)
-    context.user_data.pop("admin_selected_uid", None)
+        elif action == "addcoins":
+            user["coins"] = int(user.get("coins", 0)) + amount
 
-    return await update.message.reply_text(
-        f"💰 <b>Coins set successfully</b>\n"
-        f"👤 <b>User:</b> {name}\n"
-        f"🪙 <b>New Coins:</b> ${fmt(amount)}",
-        parse_mode="HTML"
-    )
+        elif action == "setbank":
+            user["bank"] = amount
 
-elif action == "addcoins":
-    user["coins"] = int(user.get("coins", 0)) + amount
-    save_user(uid, user)
-    await asyncio.to_thread(save)
+        elif action == "addbank":
+            user["bank"] = int(user.get("bank", 0)) + amount
 
-    context.user_data.pop("admin_step", None)
-    context.user_data.pop("admin_selected_uid", None)
+        else:
+            return await update.message.reply_text("❌ Invalid admin action")
 
-    return await update.message.reply_text(
-        f"✅ Added ${fmt(amount)} coins to {name}"
-    )
+        # SAVE (common)
+        save_user(uid, user)
+        await asyncio.to_thread(save)
 
-elif action == "setbank":
-    user["bank"] = amount
-    save_user(uid, user)
-    await asyncio.to_thread(save)
+        context.user_data.pop("admin_step", None)
+        context.user_data.pop("admin_selected_uid", None)
+        context.user_data.pop("admin_action", None)
 
-    context.user_data.pop("admin_step", None)
-    context.user_data.pop("admin_selected_uid", None)
-
-    return await update.message.reply_text(
-        f"🏦 <b>Bank balance set successfully</b>\n"
-        f"👤 <b>User:</b> {name}\n"
-        f"💰 <b>New Bank:</b> ${fmt(amount)}",
-        parse_mode="HTML"
-    )
-
-elif action == "addbank":
-    user["bank"] = int(user.get("bank", 0)) + amount
-    save_user(uid, user)
-    await asyncio.to_thread(save)
-
-    context.user_data.pop("admin_step", None)
-    context.user_data.pop("admin_selected_uid", None)
-
-    return await update.message.reply_text(
-        f"✅ Added ${fmt(amount)} bank balance to {name}"
-    )
-
-else:
-    return await update.message.reply_text("❌ Invalid admin action")
+        return await update.message.reply_text(
+            f"✅ Done\n👤 {name}\n💰 Amount: ${fmt(amount)}"
+        )
 
 # =========================
 # APP START
