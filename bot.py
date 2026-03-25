@@ -2248,7 +2248,7 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = get_user_fast(uid)
         name = html.escape(user.get("name", "User"))
 
-        if action == "setcoins":
+if action == "setcoins":
     user["coins"] = amount
     save_user(uid, user)
     await asyncio.to_thread(save)
