@@ -1082,17 +1082,27 @@ async def taxpool_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.reply_to_message:
         return await update.message.reply_text(
-            "❌ Kisi user ke message par reply karke /kill use karo."
+            "❌ <b>Kisi user ke message par reply karke /kill use karo.</b>",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
         )
 
     attacker_user = update.effective_user
     victim_user = update.message.reply_to_message.from_user
 
     if victim_user.is_bot:
-        return await update.message.reply_text("❌ Bot ko kill nahi kar sakte.")
+        return await update.message.reply_text(
+            "❌ <b>Bot ko kill nahi kar sakte.</b>",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
+        )
 
     if attacker_user.id == victim_user.id:
-        return await update.message.reply_text("❌ Khud ko kill nahi kar sakte.")
+        return await update.message.reply_text(
+            "❌ <b>Khud ko kill nahi kar sakte.</b>",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
+        )
 
     attacker, victim = await asyncio.gather(
         load_user(attacker_user.id),
@@ -1103,7 +1113,10 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if kill_left > 0:
         return await update.message.reply_text(
-            f"⏳ Kill cooldown active\nTry again in {kill_left}s"
+            f"⏳ <b>Kill cooldown active</b>\n"
+            f"Try again in {kill_left}s",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
         )
 
     protect_left = int(float(victim.get("protected_until", 0)) - time.time())
@@ -1114,11 +1127,12 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return await update.message.reply_text(
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🛡 <a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a> protected hai\n"
-            f"❌ Kill block ho gaya\n"
-            f"⏳ Protection khatam hogi {hours}h {minutes}m me",
+            f"🛡 <b><a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a> protected hai</b>\n"
+            f"❌ <b>Kill block ho gaya</b>\n"
+            f"⏳ <b>Protection khatam hogi</b> {hours}h {minutes}m me\n"
             f"━━━━━━━━━━━━━━━━━━━━",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
         )
 
     victim["dead_until"] = time.time() + 43200
@@ -1133,14 +1147,14 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
-    f"💀 <b>KILL SUCCESS</b>\n"
-    f"━━━━━━━━━━━━━━━━━━━━\n"
-    f"⚔️ <b><a href='tg://user?id={attacker_user.id}'>{html.escape(attacker_user.first_name)}</a></b> ne "
-    f"<b><a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a></b> ko kill kar diya\n"
-    f"💰 <b>Reward:</b> ${fmt(KILL_REWARD)}\n"
-    f"━━━━━━━━━━━━━━━━━━━━",
-    parse_mode="HTML",
-    reply_to_message_id=update.message.id
+        f"💀 <b>KILL SUCCESS</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"⚔️ <b><a href='tg://user?id={attacker_user.id}'>{html.escape(attacker_user.first_name)}</a></b> ne "
+        f"<b><a href='tg://user?id={victim_user.id}'>{html.escape(victim_user.first_name)}</a></b> ko kill kar diya\n"
+        f"💰 <b>Reward:</b> ${fmt(KILL_REWARD)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
     )
 
 
