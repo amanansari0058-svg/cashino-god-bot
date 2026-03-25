@@ -2273,18 +2273,33 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         if action == "addbank":
-            user["bank"] = int(user.get("bank", 0)) + amount
-            save_user(uid, user)
-            await asyncio.to_thread(save)
+    user["bank"] = int(user.get("bank", 0)) + amount
+    save_user(uid, user)
+    await asyncio.to_thread(save)
 
-            context.user_data.pop("admin_step", None)
-            context.user_data.pop("admin_selected_uid", None)
+    context.user_data.pop("admin_step", None)
+    context.user_data.pop("admin_selected_uid", None)
 
-            return await update.message.reply_text(
-                f"✅ Added ${fmt(amount)} bank balance to {name}"
-            )
+    return await update.message.reply_text(
+        f"✅ Added ${fmt(amount)} bank balance to {name}"
+    )
 
-        return await update.message.reply_text("❌ Invalid admin action")
+elif action == "setbank":
+    user["bank"] = amount
+    save_user(uid, user)
+    await asyncio.to_thread(save)
+
+    context.user_data.pop("admin_step", None)
+    context.user_data.pop("admin_selected_uid", None)
+
+    return await update.message.reply_text(
+        f"🏦 <b>Bank balance set successfully</b>\n"
+        f"👤 <b>User:</b> {name}\n"
+        f"💰 <b>New Bank:</b> ${fmt(amount)}",
+        parse_mode="HTML"
+    )
+
+return await update.message.reply_text("❌ Invalid admin action")
 
 
 # =========================
