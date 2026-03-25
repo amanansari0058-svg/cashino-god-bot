@@ -2178,6 +2178,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             f"Now send amount"
         )
 
+
 async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         return
@@ -2194,9 +2195,6 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not step or not action:
         return
 
-    # =========================
-    # SEARCH USER STEP
-    # =========================
     if step == "search_user":
         search = update.message.text.strip()
 
@@ -2230,16 +2228,12 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    # =========================
-    # ENTER AMOUNT STEP
-    # =========================
-    
-if step == "enter_amount":
+    if step == "enter_amount":
         uid = context.user_data.get("admin_selected_uid")
-        action = context.user_data.get("admin_action")
 
         if not uid:
             context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_action", None)
             return await update.message.reply_text("❌ No user selected")
 
         try:
@@ -2265,7 +2259,6 @@ if step == "enter_amount":
         else:
             return await update.message.reply_text("❌ Invalid admin action")
 
-        # SAVE (common)
         save_user(uid, user)
         await asyncio.to_thread(save)
 
@@ -2275,7 +2268,8 @@ if step == "enter_amount":
 
         return await update.message.reply_text(
             f"✅ Done\n👤 {name}\n💰 Amount: ${fmt(amount)}"
-        )
+            )
+
 
 # =========================
 # APP START
