@@ -2249,31 +2249,7 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = html.escape(user.get("name", "User"))
 
         if action == "setcoins":
-            user["coins"] = amount
-            save_user(uid, user)
-            await asyncio.to_thread(save)
-
-            context.user_data.pop("admin_step", None)
-            context.user_data.pop("admin_selected_uid", None)
-
-            return await update.message.reply_text(
-                f"✅ {name} coins set to ${fmt(amount)}"
-            )
-
-        if action == "addcoins":
-            user["coins"] = int(user.get("coins", 0)) + amount
-            save_user(uid, user)
-            await asyncio.to_thread(save)
-
-            context.user_data.pop("admin_step", None)
-            context.user_data.pop("admin_selected_uid", None)
-
-            return await update.message.reply_text(
-                f"✅ Added ${fmt(amount)} coins to {name}"
-            )
-
-        if action == "addbank":
-    user["bank"] = int(user.get("bank", 0)) + amount
+    user["coins"] = amount
     save_user(uid, user)
     await asyncio.to_thread(save)
 
@@ -2281,7 +2257,22 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("admin_selected_uid", None)
 
     return await update.message.reply_text(
-        f"✅ Added ${fmt(amount)} bank balance to {name}"
+        f"💰 <b>Coins set successfully</b>\n"
+        f"👤 <b>User:</b> {name}\n"
+        f"🪙 <b>New Coins:</b> ${fmt(amount)}",
+        parse_mode="HTML"
+    )
+
+elif action == "addcoins":
+    user["coins"] = int(user.get("coins", 0)) + amount
+    save_user(uid, user)
+    await asyncio.to_thread(save)
+
+    context.user_data.pop("admin_step", None)
+    context.user_data.pop("admin_selected_uid", None)
+
+    return await update.message.reply_text(
+        f"✅ Added ${fmt(amount)} coins to {name}"
     )
 
 elif action == "setbank":
@@ -2299,8 +2290,20 @@ elif action == "setbank":
         parse_mode="HTML"
     )
 
-return await update.message.reply_text("❌ Invalid admin action")
+elif action == "addbank":
+    user["bank"] = int(user.get("bank", 0)) + amount
+    save_user(uid, user)
+    await asyncio.to_thread(save)
 
+    context.user_data.pop("admin_step", None)
+    context.user_data.pop("admin_selected_uid", None)
+
+    return await update.message.reply_text(
+        f"✅ Added ${fmt(amount)} bank balance to {name}"
+    )
+
+else:
+    return await update.message.reply_text("❌ Invalid admin action")
 
 # =========================
 # APP START
