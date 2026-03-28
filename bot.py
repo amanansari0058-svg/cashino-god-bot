@@ -1084,7 +1084,9 @@ async def jackpot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @admin_required
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_user = update.effective_user
-    user = get_user(tg_user.id, tg_user.first_name or "Unknown")
+    user = get_user_fast(tg_user.id)
+user["name"] = tg_user.first_name or "Unknown"
+user["username"] = tg_user.username or ""
 
     check_and_reset_season(user)
     update_badges(user)
@@ -1120,7 +1122,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text(text, parse_mode="HTML")
-    await save()
+    save_user(tg_user.id, user)
 
 
 # =========================
