@@ -2,6 +2,7 @@
 # IMPORTS
 # =========================
 
+import json
 import os
 import asyncio
 import random
@@ -71,6 +72,23 @@ SPAM_COOLDOWN = 5.0
 SPAM_RESET_TIME = 5.0
 SPAM_BASE_PENALTY = 500
 
+
+#========== PROFILE CONSTANTS ==========#
+
+CURRENT_SEASON = "2026-03"
+
+LEVEL_BADGES = {
+    5: "Beginner",
+    10: "Rookie",
+    20: "Skilled",
+    30: "Pro",
+    40: "Elite",
+    50: "Master",
+    75: "Legend",
+    100: "King"
+}
+
+
 # =========================
 # DATABASE
 # =========================
@@ -80,6 +98,20 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+
+
+def migrate_db():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS level BIGINT DEFAULT 1;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS xp BIGINT DEFAULT 0;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS badges TEXT DEFAULT '[]';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS season_id TEXT DEFAULT 'current';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS season TEXT DEFAULT '{}';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS all_time TEXT DEFAULT '{}';
+            """)
+        conn.commit()
 
 
 
@@ -179,15 +211,19 @@ def get_user(uid):
                     INSERT INTO users (
                         uid, name, coins, bank, kills,
                         last_daily, dead_until, protected_until,
-                        last_rob, last_kill, last_bank_tax, last_flip
+                        last_rob, last_kill, last_bank_tax, last_flip,
+                        level, xp, badges, season_id, season, all_time
                     )
-                    VALUES (%s, 'User', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                    VALUES (
+                        %s, 'User', 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0,
+                        1, 0, '[]', '2026-03', '{}', '{}'
+                    )
                     RETURNING *
                 """, (uid,))
                 user = cur.fetchone()
                 conn.commit()
 
-    # 🔥 TYPE FIX (important)
     user["coins"] = int(user.get("coins", 0))
     user["bank"] = int(user.get("bank", 0))
     user["kills"] = int(user.get("kills", 0))
@@ -202,8 +238,124 @@ def get_user(uid):
     user["name"] = str(user.get("name", "User"))
     user["username"] = str(user.get("username", ""))
 
+    user["level"] = int(user.get("level", 1))
+    user["xp"] = int(user.get("xp", 0))
+    user["season_id"] = str(user.get("season_id", CURRENT_SEASON))
+
+    badges_raw = user.get("badges", "[]")
+    try:
+        user["badges"] = json.loads(badges_raw) if isinstance(badges_raw, str) else badges_raw
+    except:
+        user["badges"] = []
+
+    season_raw = user.get("season", "{}")
+    try:
+        user["season"] = json.loads(season_raw) if isinstance(season_raw, str) else season_raw
+    except:
+        user["season"] = {}
+
+    if not isinstance(user["season"], dict):
+        user["season"] = {}
+
+    user["season"].setdefault("coins", 0)
+    user["season"].setdefault("kills", 0)
+    user["season"].setdefault("rank", 0)
+
+    all_time_raw = user.get("all_time", "{}")
+    try:
+        user["all_time"] = json.loads(all_time_raw) if isinstance(all_time_raw, str) else all_time_raw
+    except:
+        user["all_time"] = {}
+
+    if not isinstance(user["all_time"], dict):
+        user["all_time"] = {}
+
+    user["all_time"].setdefault("duel_wins", 0)
+    user["all_time"].setdefault("best_streak", 0)
+    user["all_time"].setdefault("total_earned", 0)
+
     return user
 
+
+#========== PROFILE HELPERS ==========#
+
+def xp_needed_for_next_level(level: int) -> int:
+    return 200 + (level * 70) + (level * level * 4)
+
+def add_xp(user, amount: int):
+    if amount <= 0:
+        return False
+
+    user["xp"] += amount
+    leveled_up = False
+
+    while user["xp"] >= xp_needed_for_next_level(user["level"]):
+        need = xp_needed_for_next_level(user["level"])
+        user["xp"] -= need
+        user["level"] += 1
+        leveled_up = True
+
+    update_badges(user)
+    return leveled_up
+
+def update_badges(user):
+    badges = set(user.get("badges", []))
+
+    level = user.get("level", 1)
+    kills = user.get("kills", 0)
+    duel_wins = user.get("all_time", {}).get("duel_wins", 0)
+    total_earned = user.get("all_time", {}).get("total_earned", 0)
+    best_streak = user.get("all_time", {}).get("best_streak", 0)
+
+    for lvl, badge_name in LEVEL_BADGES.items():
+        if level >= lvl:
+            badges.add(badge_name)
+
+    if kills >= 10:
+        badges.add("Killer")
+    if duel_wins >= 10:
+        badges.add("Duel Master")
+    if total_earned >= 10000:
+        badges.add("Rich")
+    if best_streak >= 5:
+        badges.add("On Fire")
+
+    user["badges"] = list(badges)
+
+def check_and_reset_season(user):
+    if user["season_id"] != CURRENT_SEASON:
+        user["season_id"] = CURRENT_SEASON
+        user["season"] = {
+            "coins": 0,
+            "kills": 0,
+            "rank": 0
+        }
+
+def get_status_text(user):
+    now = int(time.time())
+    if user.get("dead_until", 0) > now:
+        return "Dead"
+    return "Alive"
+
+def get_display_badges(user, limit=2):
+    badges = user.get("badges", [])
+    if not badges:
+        return "None"
+    return ", ".join(badges[:limit])
+
+def get_season_rank(user_id):
+    board = []
+
+    for uid, user in users.items():
+        board.append((int(uid), user["season"]["coins"]))
+
+    board.sort(key=lambda x: x[1], reverse=True)
+
+    for i, (uid, _) in enumerate(board, start=1):
+        if uid == user_id:
+            return i
+    return 0
+    
 
 def get_user_fast(uid):
     uid = str(uid)
@@ -223,10 +375,10 @@ async def load_user(uid):
 async def save_user_async(uid, user):
     await asyncio.to_thread(save_user, str(uid), user)
     
+
 def save_user(uid, user):
     uid = str(uid)
 
-    
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -243,7 +395,13 @@ def save_user(uid, user):
                     last_kill=%s,
                     last_bank_tax=%s,
                     last_flip=%s,
-                    is_banned=%s
+                    is_banned=%s,
+                    level=%s,
+                    xp=%s,
+                    badges=%s,
+                    season_id=%s,
+                    season=%s,
+                    all_time=%s
                 WHERE uid=%s
             """, (
                 user.get("name", "User"),
@@ -259,12 +417,25 @@ def save_user(uid, user):
                 float(user.get("last_bank_tax", 0)),
                 float(user.get("last_flip", 0)),
                 bool(user.get("is_banned", False)),
+                int(user.get("level", 1)),
+                int(user.get("xp", 0)),
+                json.dumps(user.get("badges", [])),
+                str(user.get("season_id", CURRENT_SEASON)),
+                json.dumps(user.get("season", {
+                    "coins": 0,
+                    "kills": 0,
+                    "rank": 0
+                })),
+                json.dumps(user.get("all_time", {
+                    "duel_wins": 0,
+                    "best_streak": 0,
+                    "total_earned": 0
+                })),
                 uid
             ))
         conn.commit()
 
     user_cache[str(uid)] = user
-
 
 def get_user_rank(uid):
     with get_conn() as conn:
@@ -907,6 +1078,51 @@ async def jackpot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_to_message_id=update.message.id
     )
 
+
+#========== /PROFILE COMMAND ==========#
+
+@admin_required
+async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tg_user = update.effective_user
+    user = get_user(tg_user.id, tg_user.first_name or "Unknown")
+
+    check_and_reset_season(user)
+    update_badges(user)
+
+    season_rank = get_season_rank(tg_user.id)
+    user["season"]["rank"] = season_rank
+
+    level = user["level"]
+    xp = user["xp"]
+    xp_needed = xp_needed_for_next_level(level)
+
+    season_coins = user["season"]["coins"]
+    season_kills = user["season"]["kills"]
+
+    duel_wins = user["all_time"]["duel_wins"]
+    best_streak = user["all_time"]["best_streak"]
+    total_earned = user["all_time"]["total_earned"]
+
+    safe_name = html.escape(user["name"])
+
+    text = (
+        "<b>╔══════ 👤 PLAYER PROFILE ══════╗</b>\n\n"
+        f'👤 <b>Name:</b> <a href="tg://user?id={tg_user.id}">{safe_name}</a>\n'
+        f"⭐ <b>Level:</b> {level}  |  ✨ <b>XP:</b> {xp}/{xp_needed}\n\n"
+        "<b>📅 Current Season</b>\n"
+        f"💰 <b>Coins:</b> {season_coins:,}   💀 <b>Kills:</b> {season_kills}   👑 <b>Rank:</b> #{season_rank}\n\n"
+        "<b>📜 All Time</b>\n"
+        f"⚔️ <b>Duel Wins:</b> {duel_wins}   🔥 <b>Best Streak:</b> {best_streak}\n"
+        f"💸 <b>Total Earned:</b> {total_earned:,}\n\n"
+        f"🏅 <b>Badges:</b> {get_display_badges(user, 2)}\n"
+        f"❤️ <b>Status:</b> {get_status_text(user)}\n\n"
+        "<b>╚══════════════════════════════╝</b>"
+    )
+
+    await update.message.reply_text(text, parse_mode="HTML")
+    await save()
+
+
 # =========================
 # BANK SETTINGS
 # =========================
@@ -1337,6 +1553,7 @@ def lose_message(user, emoji, result, pick, amount):
 👑 <a href='tg://user?id={user.id}'>{html.escape(user.first_name)}</a> 💸
 """
 
+
 @alive_required
 @admin_required
 async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1348,6 +1565,14 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     uid = update.effective_user.id
     u = get_user_fast(uid)
+
+    u.setdefault("all_time", {})
+    u["all_time"].setdefault("total_earned", 0)
+
+    u.setdefault("season", {})
+    u["season"].setdefault("coins", 0)
+    u["season"].setdefault("kills", 0)
+    u["season"].setdefault("rank", 0)
 
     try:
         bet = int(context.args[0])
@@ -1395,6 +1620,9 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if result_key == choice:
         win = bet * 2
         u["coins"] = int(u.get("coins", 0)) + win
+        u["all_time"]["total_earned"] += win
+        u["season"]["coins"] += win
+        add_xp(u, 4)
         text = win_message(update.effective_user, "🪙", result_text, choice_text, win)
 
         print(
@@ -1402,6 +1630,7 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     else:
         u["coins"] = int(u.get("coins", 0)) - bet
+        add_xp(u, 2)
         text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
 
         print(
@@ -1416,7 +1645,7 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_to_message_id=update.message.id
     )
-
+    
 
 @alive_required
 @admin_required
@@ -1428,6 +1657,14 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     u = get_user_fast(update.effective_user.id)
+
+    u.setdefault("all_time", {})
+    u["all_time"].setdefault("total_earned", 0)
+
+    u.setdefault("season", {})
+    u["season"].setdefault("coins", 0)
+    u["season"].setdefault("kills", 0)
+    u["season"].setdefault("rank", 0)
 
     try:
         bet = int(context.args[0])
@@ -1463,9 +1700,13 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if roll == guess:
         win = bet * 5
         u["coins"] += win
+        u["all_time"]["total_earned"] += win
+        u["season"]["coins"] += win
+        add_xp(u, 4)
         text = win_message(update.effective_user, "🎲", str(roll), str(guess), win)
     else:
         u["coins"] -= bet
+        add_xp(u, 2)
         text = lose_message(update.effective_user, "🎲", str(roll), str(guess), bet)
 
     save_user(update.effective_user.id, u)
@@ -1476,7 +1717,7 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         reply_to_message_id=update.message.id
     )
-
+    
 
 @alive_required
 @admin_required
@@ -1488,6 +1729,14 @@ async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     u = get_user_fast(update.effective_user.id)
+
+    u.setdefault("all_time", {})
+    u["all_time"].setdefault("total_earned", 0)
+
+    u.setdefault("season", {})
+    u["season"].setdefault("coins", 0)
+    u["season"].setdefault("kills", 0)
+    u["season"].setdefault("rank", 0)
 
     try:
         bet = int(context.args[0])
@@ -1516,23 +1765,33 @@ async def slots(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if value == 64:
         win = bet * 10
         u["coins"] += win
+        u["all_time"]["total_earned"] += win
+        u["season"]["coins"] += win
+        add_xp(u, 4)
         result = "💎💎💎 JACKPOT"
         text = win_message(update.effective_user, "🎰", result, "🎰", win)
 
     elif value in [1, 22, 43]:
         win = bet * 3
         u["coins"] += win
+        u["all_time"]["total_earned"] += win
+        u["season"]["coins"] += win
+        add_xp(u, 4)
         result = "🔥 Double Match"
         text = win_message(update.effective_user, "🎰", result, "🎰", win)
 
     elif value in [16, 32]:
         win = bet * 2
         u["coins"] += win
+        u["all_time"]["total_earned"] += win
+        u["season"]["coins"] += win
+        add_xp(u, 4)
         result = "✨ Small Win"
         text = win_message(update.effective_user, "🎰", result, "🎰", win)
 
     else:
         u["coins"] -= bet
+        add_xp(u, 2)
         result = "❌ No Match"
         text = lose_message(update.effective_user, "🎰", result, "🎰", bet)
 
@@ -1556,6 +1815,14 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     u = get_user_fast(update.effective_user.id)
+
+    u.setdefault("all_time", {})
+    u["all_time"].setdefault("total_earned", 0)
+
+    u.setdefault("season", {})
+    u["season"].setdefault("coins", 0)
+    u["season"].setdefault("kills", 0)
+    u["season"].setdefault("rank", 0)
 
     choice = context.args[0].lower()
 
@@ -1597,9 +1864,13 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if result == choice:
         win = bet * 2
         u["coins"] += win
+        u["all_time"]["total_earned"] += win
+        u["season"]["coins"] += win
+        add_xp(u, 4)
         text = win_message(update.effective_user, "🎨", result.upper(), choice.upper(), win)
     else:
         u["coins"] -= bet
+        add_xp(u, 2)
         text = lose_message(update.effective_user, "🎨", result.upper(), choice.upper(), bet)
 
     save_user(update.effective_user.id, u)
@@ -1609,7 +1880,7 @@ async def color(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text,
         parse_mode="HTML",
         reply_to_message_id=update.message.id
-        )  
+    )
 
 
 @alive_required
@@ -1688,6 +1959,7 @@ async def duel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     asyncio.create_task(expire_pending_duel(context, chat_id))
+
 
 # =========================
 # DUEL HANDLER
@@ -1818,9 +2090,42 @@ async def duel_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     winner = await load_user(user_id)
-    winner["coins"] = int(winner.get("coins", 0)) + duel["total_prize"]
+    loser_id = duel["acceptor_id"] if user_id == duel["challenger_id"] else duel["challenger_id"]
+    loser = await load_user(loser_id)
 
-    await save_user_async(user_id, winner)
+    winner.setdefault("all_time", {})
+    winner["all_time"].setdefault("duel_wins", 0)
+    winner["all_time"].setdefault("best_streak", 0)
+    winner["all_time"].setdefault("total_earned", 0)
+
+    winner.setdefault("season", {})
+    winner["season"].setdefault("coins", 0)
+    winner["season"].setdefault("kills", 0)
+    winner["season"].setdefault("rank", 0)
+
+    loser.setdefault("all_time", {})
+    loser["all_time"].setdefault("duel_wins", 0)
+    loser["all_time"].setdefault("best_streak", 0)
+    loser["all_time"].setdefault("total_earned", 0)
+
+    loser.setdefault("season", {})
+    loser["season"].setdefault("coins", 0)
+    loser["season"].setdefault("kills", 0)
+    loser["season"].setdefault("rank", 0)
+
+    winner["coins"] = int(winner.get("coins", 0)) + duel["total_prize"]
+    winner["duel_wins"] = int(winner.get("duel_wins", 0)) + 1
+    winner["all_time"]["duel_wins"] += 1
+    winner["all_time"]["total_earned"] += duel["total_prize"]
+    winner["season"]["coins"] += duel["total_prize"]
+
+    add_xp(winner, 10)
+    add_xp(loser, 4)
+
+    await asyncio.gather(
+        save_user_async(user_id, winner),
+        save_user_async(loser_id, loser)
+    )
     await asyncio.to_thread(save)
 
     winner_name = html.escape(update.effective_user.first_name)
@@ -2275,6 +2580,8 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 print("TOKEN FOUND:", bool(TOKEN))
 
+migrate_db()
+
 app = ApplicationBuilder().token(TOKEN).concurrent_updates(True).build()
 
 print("APP BUILT")
@@ -2282,6 +2589,7 @@ print("APP BUILT")
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_cmd))
 
+app.add_handler(CommandHandler("profile", profile_command))
 app.add_handler(CommandHandler("bal", bal))
 app.add_handler(CommandHandler("daily", daily))
 app.add_handler(CommandHandler("give", give))
