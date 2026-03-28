@@ -2434,57 +2434,56 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data.pop("admin_step", None)
         return await query.edit_message_text("❌ Panel closed")
 
-if data == "admin:resetallcoins":
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE users
-                SET 
-                    coins = 0,
-                    bank = 0,
-                    kills = 0,
-                    duel_wins = 0,
-                    duel_losses = 0,
-                    dead_until = 0,
-                    protected_until = 0,
-                    last_daily = 0,
-                    last_rob = 0,
-                    last_kill = 0,
-                    last_bank_tax = 0,
-                    last_flip = 0,
-                    season = %s
-            """, (
-                json.dumps({
-                    "coins": 0,
-                    "kills": 0,
-                    "rank": 0
-                }),
-            ))
-        conn.commit()
+    if data == "admin:resetallcoins":
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE users
+                    SET 
+                        coins = 0,
+                        bank = 0,
+                        kills = 0,
+                        duel_wins = 0,
+                        duel_losses = 0,
+                        dead_until = 0,
+                        protected_until = 0,
+                        last_daily = 0,
+                        last_rob = 0,
+                        last_kill = 0,
+                        last_bank_tax = 0,
+                        last_flip = 0,
+                        season = %s
+                """, (
+                    json.dumps({
+                        "coins": 0,
+                        "kills": 0,
+                        "rank": 0
+                    }),
+                ))
+            conn.commit()
 
-    user_cache.clear()
+        user_cache.clear()
 
-    context.user_data.pop("admin_action", None)
-    context.user_data.pop("admin_selected_uid", None)
-    context.user_data.pop("admin_step", None)
+        context.user_data.pop("admin_action", None)
+        context.user_data.pop("admin_selected_uid", None)
+        context.user_data.pop("admin_step", None)
 
-    return await query.edit_message_text(
-        "⚙️ <b>PLAYER RESET SUCCESSFUL</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "❌ Wallet: Reset\n"
-        "❌ Bank: Reset\n"
-        "❌ Kills: Reset\n"
-        "❌ Protection/Cooldowns: Reset\n"
-        "❌ Current Season: Reset\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "✅ Level/XP/Badges: Safe\n"
-        "✅ All Time: Safe\n"
-        "✅ Jackpot: Safe\n"
-        "━━━━━━━━━━━━━━━━━━━━",
-        parse_mode="HTML"
-    )
+        return await query.edit_message_text(
+            "⚙️ <b>PLAYER RESET SUCCESSFUL</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "❌ Wallet: Reset\n"
+            "❌ Bank: Reset\n"
+            "❌ Kills: Reset\n"
+            "❌ Protection/Cooldowns: Reset\n"
+            "❌ Current Season: Reset\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "✅ Level/XP/Badges: Safe\n"
+            "✅ All Time: Safe\n"
+            "✅ Jackpot: Safe\n"
+            "━━━━━━━━━━━━━━━━━━━━",
+            parse_mode="HTML"
+        )
 
-    
     if data.startswith("admin:setcoins"):
         context.user_data["admin_action"] = "setcoins"
         context.user_data["admin_step"] = "search_user"
@@ -2552,7 +2551,7 @@ if data == "admin:resetallcoins":
             "🚫 Banned users list\n\nNeeche se select karo ya name/username/id bhej ke search karo",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-    
+
     if data.startswith("admin:pick:"):
         uid = data.split(":", 2)[2]
         context.user_data["admin_selected_uid"] = uid
@@ -2630,6 +2629,7 @@ if data == "admin:resetallcoins":
             f"Now send amount"
         )
 
+    
 
 async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
