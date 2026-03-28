@@ -2443,15 +2443,12 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                         coins = 0,
                         bank = 0,
                         kills = 0,
-                        duel_wins = 0,
-                        duel_losses = 0,
                         dead_until = 0,
                         protected_until = 0,
                         last_daily = 0,
                         last_rob = 0,
                         last_kill = 0,
                         last_bank_tax = 0,
-                        last_flip = 0,
                         season = %s
                 """, (
                     json.dumps({
