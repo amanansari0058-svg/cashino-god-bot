@@ -2406,6 +2406,27 @@ async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@admin_required
+async def cancel_admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        return await update.message.reply_text("❌ Owner only")
+
+    had_action = any([
+        context.user_data.get("admin_action"),
+        context.user_data.get("admin_step"),
+        context.user_data.get("admin_selected_uid"),
+    ])
+
+    context.user_data.pop("admin_action", None)
+    context.user_data.pop("admin_step", None)
+    context.user_data.pop("admin_selected_uid", None)
+
+    if had_action:
+        return await update.message.reply_text("❌ Current admin action cancelled")
+
+    return await update.message.reply_text("ℹ️ No active admin action")
+
+
 # =========================
 # OWNER PANEL CALLBACK
 # =========================
@@ -2459,7 +2480,16 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    if data == "admin:menu:economy":
+    
+
+    if data == "admin:menu:broadcast":
+        keyboard = [
+            [InlineKeyboardButton("Start Broadcast", callback_data="admin:startbroadcast")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main")]
+        ]
+
+        return await query.edit_message_text(
+            "📢 BROADCAST PANEL\n\nChoose aif data == "admin:menu:economy":
         keyboard = [
             [
                 InlineKeyboardButton("Set Coins", callback_data="admin:setcoins"),
@@ -2470,23 +2500,16 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 InlineKeyboardButton("Add Bank", callback_data="admin:addbank"),
             ],
             [
+                InlineKeyboardButton("🎰 Jackpot", callback_data="admin:menu:jackpot"),
+                InlineKeyboardButton("📊 Tax Pool", callback_data="admin:menu:taxpool"),
+            ],
+            [
                 InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main"),
             ]
         ]
 
         return await query.edit_message_text(
             "💰 ECONOMY PANEL\n\nChoose an action:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
-    if data == "admin:menu:broadcast":
-        keyboard = [
-            [InlineKeyboardButton("Start Broadcast", callback_data="admin:startbroadcast")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main")]
-        ]
-
-        return await query.edit_message_text(
-            "📢 BROADCAST PANEL\n\nChoose an action:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -2510,6 +2533,33 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         )
 
     if data == "admin:resetallcoins":
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Yes, Reset", callback_data="admin:confirm_resetallcoins"),
+                InlineKeyboardButton("⬅️ Back", callback_data="admin:menu:danger"),
+            ]
+        ]
+
+        return await query.edit_message_text(
+            "⚠️ <b>CONFIRM RESET ALL</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "Ye action sab users ke:\n"
+            "❌ Wallet reset karega\n"
+            "❌ Bank reset karega\n"
+            "❌ Kills reset karega\n"
+            "❌ Protection/Cooldowns reset karega\n"
+            "❌ Current Season reset karega\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "✅ Level/XP/Badges safe rahenge\n"
+            "✅ All Time safe rahega\n"
+            "✅ Jackpot safe rahega\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "Confirm karna hai?",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    if data == "admin:confirm_resetallcoins":
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -2555,6 +2605,80 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             parse_mode="HTML"
         )
 
+    if data == "admin:menu:jackpot":
+        keyboard = [
+            [
+                InlineKeyboardButton("View Jackpot", callback_data="admin:viewjackpot"),
+                InlineKeyboardButton("Set Jackpot", callback_data="admin:setjackpot"),
+            ],
+            [
+                InlineKeyboardButton("Add Jackpot", callback_data="admin:addjackpot"),
+            ],
+            [
+                InlineKeyboardButton("⬅️ Back", callback_data="admin:menu:economy"),
+            ]
+        ]
+
+        return await query.edit_message_text(
+            "🎰 JACKPOT CONTROL\n\nChoose an action:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    if data == "admin:menu:taxpool":
+        keyboard = [
+            [
+                InlineKeyboardButton("View Tax Pool", callback_data="admin:viewtaxpool"),
+                InlineKeyboardButton("Set Tax Pool", callback_data="admin:settaxpool"),
+            ],
+            [
+                InlineKeyboardButton("Add Tax Pool", callback_data="admin:addtaxpool"),
+            ],
+            [
+                InlineKeyboardButton("⬅️ Back", callback_data="admin:menu:economy"),
+            ]
+        ]
+
+        return await query.edit_message_text(
+            "📊 TAX POOL CONTROL\n\nChoose an action:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    if data == "admin:viewjackpot":
+        return await query.edit_message_text(
+            f"🎰 Current Jackpot: ${fmt(jackpot_pool)}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Back", callback_data="admin:menu:jackpot")]
+            ])
+        )
+
+    if data == "admin:setjackpot":
+        context.user_data["admin_action"] = "setjackpot"
+        context.user_data["admin_step"] = "enter_amount"
+        return await query.edit_message_text("Send amount to SET jackpot")
+
+    if data == "admin:addjackpot":
+        context.user_data["admin_action"] = "addjackpot"
+        context.user_data["admin_step"] = "enter_amount"
+        return await query.edit_message_text("Send amount to ADD jackpot")
+
+    if data == "admin:viewtaxpool":
+        return await query.edit_message_text(
+            f"📊 Current Tax Pool: ${fmt(tax_pool)}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Back", callback_data="admin:menu:taxpool")]
+            ])
+        )
+
+    if data == "admin:settaxpool":
+        context.user_data["admin_action"] = "settaxpool"
+        context.user_data["admin_step"] = "enter_amount"
+        return await query.edit_message_text("Send amount to SET tax pool")
+
+    if data == "admin:addtaxpool":
+        context.user_data["admin_action"] = "addtaxpool"
+        context.user_data["admin_step"] = "enter_amount"
+        return await query.edit_message_text("Send amount to ADD tax pool")
+        
     if data.startswith("admin:setcoins"):
         context.user_data["admin_action"] = "setcoins"
         context.user_data["admin_step"] = "search_user"
@@ -2783,18 +2907,56 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ Broadcast completed\n\nSent: {sent}\nFailed: {failed}"
         )
 
-    if step == "enter_amount":
-        uid = context.user_data.get("admin_selected_uid")
+   if step == "enter_amount":
+        global jackpot_pool, tax_pool
 
-        if not uid:
-            context.user_data.pop("admin_step", None)
-            context.user_data.pop("admin_action", None)
-            return await update.message.reply_text("❌ No user selected")
+        uid = context.user_data.get("admin_selected_uid")
 
         try:
             amount = int(update.message.text.strip())
         except:
             return await update.message.reply_text("❌ Invalid amount")
+
+        if action == "setjackpot":
+            jackpot_pool = amount
+
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
+            context.user_data.pop("admin_action", None)
+
+            return await update.message.reply_text(f"✅ Jackpot set to ${fmt(amount)}")
+
+        elif action == "addjackpot":
+            jackpot_pool += amount
+
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
+            context.user_data.pop("admin_action", None)
+
+            return await update.message.reply_text(f"✅ Jackpot increased by ${fmt(amount)}")
+
+        elif action == "settaxpool":
+            tax_pool = amount
+
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
+            context.user_data.pop("admin_action", None)
+
+            return await update.message.reply_text(f"✅ Tax Pool set to ${fmt(amount)}")
+
+        elif action == "addtaxpool":
+            tax_pool += amount
+
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_selected_uid", None)
+            context.user_data.pop("admin_action", None)
+
+            return await update.message.reply_text(f"✅ Tax Pool increased by ${fmt(amount)}")
+
+        if not uid:
+            context.user_data.pop("admin_step", None)
+            context.user_data.pop("admin_action", None)
+            return await update.message.reply_text("❌ No user selected")
 
         user = get_user_fast(uid)
         name = html.escape(user.get("name", "User"))
@@ -2823,8 +2985,7 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return await update.message.reply_text(
             f"✅ Done\n👤 {name}\n💰 Amount: ${fmt(amount)}"
-        )
-
+        ) 
 
 
 # =========================
@@ -2874,6 +3035,7 @@ app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), duel_answer_ha
 
 # NEW OWNER PANEL
 app.add_handler(CommandHandler("panel", panel))
+app.add_handler(CommandHandler("cancel", cancel_admin_action))
 app.add_handler(CallbackQueryHandler(admin_panel_callback, pattern=r"^admin:"))
 
 # ALWAYS LAST
