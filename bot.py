@@ -2835,6 +2835,8 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 # =========================
 
 async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global jackpot_pool, tax_pool
+
     if update.effective_user.id != OWNER_ID:
         return
 
@@ -2912,9 +2914,7 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ Broadcast completed\n\nSent: {sent}\nFailed: {failed}"
         )
 
-   if step == "enter_amount":
-        global jackpot_pool, tax_pool
-
+    if step == "enter_amount":
         uid = context.user_data.get("admin_selected_uid")
 
         try:
@@ -2924,38 +2924,30 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if action == "setjackpot":
             jackpot_pool = amount
-
             context.user_data.pop("admin_step", None)
             context.user_data.pop("admin_selected_uid", None)
             context.user_data.pop("admin_action", None)
-
             return await update.message.reply_text(f"✅ Jackpot set to ${fmt(amount)}")
 
         elif action == "addjackpot":
             jackpot_pool += amount
-
             context.user_data.pop("admin_step", None)
             context.user_data.pop("admin_selected_uid", None)
             context.user_data.pop("admin_action", None)
-
             return await update.message.reply_text(f"✅ Jackpot increased by ${fmt(amount)}")
 
         elif action == "settaxpool":
             tax_pool = amount
-
             context.user_data.pop("admin_step", None)
             context.user_data.pop("admin_selected_uid", None)
             context.user_data.pop("admin_action", None)
-
             return await update.message.reply_text(f"✅ Tax Pool set to ${fmt(amount)}")
 
         elif action == "addtaxpool":
             tax_pool += amount
-
             context.user_data.pop("admin_step", None)
             context.user_data.pop("admin_selected_uid", None)
             context.user_data.pop("admin_action", None)
-
             return await update.message.reply_text(f"✅ Tax Pool increased by ${fmt(amount)}")
 
         if not uid:
@@ -2990,8 +2982,9 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return await update.message.reply_text(
             f"✅ Done\n👤 {name}\n💰 Amount: ${fmt(amount)}"
-        ) 
+        )
 
+            
 
 # =========================
 # APP START
