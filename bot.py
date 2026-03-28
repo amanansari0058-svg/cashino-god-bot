@@ -2480,19 +2480,18 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    
 
     if data == "admin:menu:broadcast":
-    keyboard = [
-        [InlineKeyboardButton("📢 Start Broadcast", callback_data="admin:startbroadcast")],
-        [InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main")]
-    ]
+        keyboard = [
+            [InlineKeyboardButton("📢 Start Broadcast", callback_data="admin:startbroadcast")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main")]
+        ]
 
-    return await query.edit_message_text(
-        "📢 <b>BROADCAST PANEL</b>\n\nChoose an action:",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+        return await query.edit_message_text(
+            "📢 <b>BROADCAST PANEL</b>\n\nChoose an action:",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
     if data == "admin:menu:economy":
     keyboard = [
