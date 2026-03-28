@@ -2434,7 +2434,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data.pop("admin_step", None)
         return await query.edit_message_text("❌ Panel closed")
 
-    if data == "admin:resetallcoins":
+if data == "admin:resetallcoins":
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -2483,6 +2483,7 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         "━━━━━━━━━━━━━━━━━━━━",
         parse_mode="HTML"
     )
+
     
     if data.startswith("admin:setcoins"):
         context.user_data["admin_action"] = "setcoins"
