@@ -2483,35 +2483,41 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     
 
     if data == "admin:menu:broadcast":
-        keyboard = [
-            [InlineKeyboardButton("Start Broadcast", callback_data="admin:startbroadcast")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main")]
-        ]
+    keyboard = [
+        [InlineKeyboardButton("📢 Start Broadcast", callback_data="admin:startbroadcast")],
+        [InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main")]
+    ]
 
-        return await query.edit_message_text(
-            "📢 BROADCAST PANEL\n\nChoose aif data == "admin:menu:economy":
-        keyboard = [
-            [
-                InlineKeyboardButton("Set Coins", callback_data="admin:setcoins"),
-                InlineKeyboardButton("Add Coins", callback_data="admin:addcoins"),
-            ],
-            [
-                InlineKeyboardButton("Set Bank", callback_data="admin:setbank"),
-                InlineKeyboardButton("Add Bank", callback_data="admin:addbank"),
-            ],
-            [
-                InlineKeyboardButton("🎰 Jackpot", callback_data="admin:menu:jackpot"),
-                InlineKeyboardButton("📊 Tax Pool", callback_data="admin:menu:taxpool"),
-            ],
-            [
-                InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main"),
-            ]
-        ]
+    return await query.edit_message_text(
+        "📢 <b>BROADCAST PANEL</b>\n\nChoose an action:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-        return await query.edit_message_text(
-            "💰 ECONOMY PANEL\n\nChoose an action:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+    if data == "admin:menu:economy":
+    keyboard = [
+        [
+            InlineKeyboardButton("Set Coins", callback_data="admin:setcoins"),
+            InlineKeyboardButton("Add Coins", callback_data="admin:addcoins"),
+        ],
+        [
+            InlineKeyboardButton("Set Bank", callback_data="admin:setbank"),
+            InlineKeyboardButton("Add Bank", callback_data="admin:addbank"),
+        ],
+        [
+            InlineKeyboardButton("🎰 Jackpot", callback_data="admin:menu:jackpot"),
+            InlineKeyboardButton("📊 Tax Pool", callback_data="admin:menu:taxpool"),
+        ],
+        [
+            InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main"),
+        ]
+    ]
+
+    return await query.edit_message_text(
+        "💰 <b>ECONOMY PANEL</b>\n\nChoose an action:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
     if data == "admin:menu:danger":
         keyboard = [
