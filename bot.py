@@ -343,17 +343,36 @@ def get_display_badges(user, limit=2):
         return "None"
     return ", ".join(badges[:limit])
 
-def get_season_rank(user_id):
+def get_season_rank(uid):
+    uid = str(uid)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT uid, season FROM users")
+            rows = cur.fetchall()
+
     board = []
 
-    for uid, user in users.items():
-        board.append((int(uid), user["season"]["coins"]))
+    for row in rows:
+        season_raw = row.get("season", "{}")
+
+        try:
+            season_data = json.loads(season_raw) if isinstance(season_raw, str) else season_raw
+        except:
+            season_data = {}
+
+        if not isinstance(season_data, dict):
+            season_data = {}
+
+        coins = int(season_data.get("coins", 0))
+        board.append((str(row["uid"]), coins))
 
     board.sort(key=lambda x: x[1], reverse=True)
 
-    for i, (uid, _) in enumerate(board, start=1):
-        if uid == user_id:
+    for i, (row_uid, _) in enumerate(board, start=1):
+        if row_uid == uid:
             return i
+
     return 0
     
 
