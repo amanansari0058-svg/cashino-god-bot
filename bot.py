@@ -1146,8 +1146,8 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     check_and_reset_season(user)
     update_badges(user)
 
-    season_rank = get_season_rank(tg_user.id)
-    user["season"]["rank"] = season_rank
+    current_rank = get_user_rank(tg_user.id)
+    user["season"]["rank"] = current_rank
 
     level = user["level"]
     xp = user["xp"]
@@ -1167,7 +1167,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f'👤 <b>Name:</b> <a href="tg://user?id={tg_user.id}">{safe_name}</a>\n'
         f"⭐ <b>Level:</b> {level}  |  ✨ <b>XP:</b> {xp}/{xp_needed}\n\n"
         "<b>📅 Current Season</b>\n"
-        f"💰 <b>Coins:</b> {season_coins:,}   💀 <b>Kills:</b> {season_kills}   👑 <b>Rank:</b> #{season_rank}\n\n"
+        f"💰 <b>Coins:</b> {season_coins:,}   💀 <b>Kills:</b> {season_kills}   👑 <b>Rank:</b> #{current_rank}\n\n"
         "<b>📜 All Time</b>\n"
         f"⚔️ <b>Duel Wins:</b> {duel_wins}   🔥 <b>Best Streak:</b> {best_streak}\n"
         f"💸 <b>Total Earned:</b> {total_earned:,}\n\n"
