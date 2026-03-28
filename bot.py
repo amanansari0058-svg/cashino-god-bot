@@ -887,6 +887,7 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 • <b>/toprich</b> — Top 10 richest players  
 
 🏦 <b>Eᴄᴏɴᴏᴍʏ:</b>
+• <b>/profile</b> — Apni profile dekho
 • <b>/taxpool</b> — Total collected tax dekho  
 • <b>/jackpot</b> — Global jackpot amount dekho  
 
@@ -905,6 +906,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎰 <b>Casino God Help</b>\n\n"
 
         "💰 <b>Economy</b>\n"
+        "• <b>/profile</b> - Your profile\n"
         "• <b>/bal</b> - Check balance\n"
         "• <b>/daily</b> - Claim daily reward\n"
         "• <b>/give</b> (reply) - Give coins\n"
@@ -993,6 +995,14 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     u = await load_user(uid)
 
+    u.setdefault("all_time", {})
+    u["all_time"].setdefault("total_earned", 0)
+
+    u.setdefault("season", {})
+    u["season"].setdefault("coins", 0)
+    u["season"].setdefault("kills", 0)
+    u["season"].setdefault("rank", 0)
+
     now = time.time()
     last = float(u.get("last_daily", 0))
 
@@ -1007,6 +1017,10 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     u["coins"] = int(u.get("coins", 0)) + DAILY_REWARD
     u["last_daily"] = now
+
+    u["all_time"]["total_earned"] += DAILY_REWARD
+    u["season"]["coins"] += DAILY_REWARD
+    add_xp(u, 3)
 
     await save_user_async(uid, u)
     await asyncio.to_thread(save)
@@ -1045,11 +1059,26 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if amount <= 0:
         return await update.message.reply_text("❌ Amount > 0 hona chahiye")
 
-    # 🔥 PARALLEL LOAD (FASTER)
     sender, target = await asyncio.gather(
         load_user(sender_user.id),
         load_user(target_user.id)
     )
+
+    sender.setdefault("all_time", {})
+    sender["all_time"].setdefault("total_earned", 0)
+
+    sender.setdefault("season", {})
+    sender["season"].setdefault("coins", 0)
+    sender["season"].setdefault("kills", 0)
+    sender["season"].setdefault("rank", 0)
+
+    target.setdefault("all_time", {})
+    target["all_time"].setdefault("total_earned", 0)
+
+    target.setdefault("season", {})
+    target["season"].setdefault("coins", 0)
+    target["season"].setdefault("kills", 0)
+    target["season"].setdefault("rank", 0)
 
     if sender["coins"] < amount:
         return await update.message.reply_text("❌ Not enough coins")
@@ -1061,7 +1090,13 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target["coins"] += send_amount
     tax_pool += tax
 
-    # 🔥 PARALLEL SAVE (FASTER)
+    # 🔥 PROFILE + XP
+    target["all_time"]["total_earned"] += send_amount
+    target["season"]["coins"] += send_amount
+
+    add_xp(sender, 1)
+    add_xp(target, 1)
+
     await asyncio.gather(
         save_user_async(sender_user.id, sender),
         save_user_async(target_user.id, target)
@@ -1073,13 +1108,14 @@ async def give(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_name = html.escape(target_user.first_name)
 
     await update.message.reply_text(
-    f"━━━━━━━━━━━━━━━━━━━━\n"
-    f"💸 <b>{sender_name}</b> sent <b>${fmt(send_amount)}</b> to <b>{target_name}</b>\n"
-    f"🧾 <b>Tax:</b> ${fmt(tax)}\n"
-    f"━━━━━━━━━━━━━━━━━━━━",
-    parse_mode="HTML",
-    reply_to_message_id=update.message.id
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💸 <b>{sender_name}</b> sent <b>${fmt(send_amount)}</b> to <b>{target_name}</b>\n"
+        f"🧾 <b>Tax:</b> ${fmt(tax)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
     )
+
 
 @admin_required
 async def jackpot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1137,7 +1173,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💸 <b>Total Earned:</b> {total_earned:,}\n\n"
         f"🏅 <b>Badges:</b> {get_display_badges(user, 2)}\n"
         f"❤️ <b>Status:</b> {get_status_text(user)}\n\n"
-        "<b>╚══════════════════════════════╝</b>"
+        "<b>╚═════════════════════════╝</b>"
     )
 
     save_user(tg_user.id, user)
@@ -1211,22 +1247,24 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u["coins"] = int(u.get("coins", 0)) - amount
     u["bank"] = int(u.get("bank", 0)) + amount
 
-    # tax timer deposit ke time se start hoga
     u["last_bank_tax"] = time.time() + BANK_TAX_TIME
+
+    # 🔥 XP (safe, no farming)
+    add_xp(u, 1)
 
     await save_user_async(uid, u)
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
-    f"🏦 <b>DEPOSIT SUCCESS</b>\n"
-    f"━━━━━━━━━━━━━━━━━━━━\n"
-    f"💰 <b>Amount Deposited:</b> ${fmt(amount)}\n"
-    f"━━━━━━━━━━━━━━━━━━━━\n"
-    f"📊 Bank funds time ke sath adjust hote rahenge\n"
-    f"⏳ Long term hold me difference dekhne ko milega\n"
-    f"━━━━━━━━━━━━━━━━━━━━",
-    parse_mode="HTML",
-    reply_to_message_id=update.message.id
+        f"🏦 <b>DEPOSIT SUCCESS</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💰 <b>Amount Deposited:</b> ${fmt(amount)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Bank funds time ke sath adjust hote rahenge\n"
+        f"⏳ Long term hold me difference dekhne ko milega\n"
+        f"━━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
     )
 
 
@@ -1255,10 +1293,15 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u["bank"] = int(u.get("bank", 0)) - amount
     u["coins"] = int(u.get("coins", 0)) + amount
 
+    # 🔥 XP (safe, no farming)
+    add_xp(u, 1)
+
     await save_user_async(uid, u)
     await asyncio.to_thread(save)
 
-    await update.message.reply_text(f"💰 Withdrawn ${fmt(amount)}")
+    await update.message.reply_text(
+        f"💰 Withdrawn ${fmt(amount)}"
+    )
 
 
 
@@ -1348,6 +1391,16 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
         load_user(victim_user.id)
     )
 
+    attacker.setdefault("all_time", {})
+    attacker["all_time"].setdefault("duel_wins", 0)
+    attacker["all_time"].setdefault("best_streak", 0)
+    attacker["all_time"].setdefault("total_earned", 0)
+
+    attacker.setdefault("season", {})
+    attacker["season"].setdefault("coins", 0)
+    attacker["season"].setdefault("kills", 0)
+    attacker["season"].setdefault("rank", 0)
+
     kill_left = int(KILL_COOLDOWN - (time.time() - float(attacker.get("last_kill", 0))))
 
     if kill_left > 0:
@@ -1379,6 +1432,11 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     attacker["kills"] = int(attacker.get("kills", 0)) + 1
     attacker["last_kill"] = time.time()
 
+    attacker["all_time"]["total_earned"] += KILL_REWARD
+    attacker["season"]["coins"] += KILL_REWARD
+    attacker["season"]["kills"] += 1
+    add_xp(attacker, 8)
+
     await asyncio.gather(
         save_user_async(attacker_user.id, attacker),
         save_user_async(victim_user.id, victim)
@@ -1402,9 +1460,9 @@ async def kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.reply_to_message:
         return await update.message.reply_text(
-    "❌ <b>Kisi user ke message par reply karke /kill use karo.</b>",
-    parse_mode="HTML",
-    reply_to_message_id=update.message.id
+            "❌ <b>Kisi user ke message par reply karke /kill use karo.</b>",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
         )
 
     robber_user = update.effective_user
@@ -1414,6 +1472,16 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
         load_user(robber_user.id),
         load_user(target_user.id)
     )
+
+    robber.setdefault("all_time", {})
+    robber["all_time"].setdefault("duel_wins", 0)
+    robber["all_time"].setdefault("best_streak", 0)
+    robber["all_time"].setdefault("total_earned", 0)
+
+    robber.setdefault("season", {})
+    robber["season"].setdefault("coins", 0)
+    robber["season"].setdefault("kills", 0)
+    robber["season"].setdefault("rank", 0)
 
     rob_left = int(ROB_COOLDOWN - (time.time() - float(robber.get("last_rob", 0))))
 
@@ -1430,25 +1498,29 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = (protect_left % 3600) // 60
 
         return await update.message.reply_text(
-    f"🛡 <b>{html.escape(target_user.first_name)} protected hai</b>\n"
-    f"❌ <b>Rob block ho gaya</b>\n"
-    f"⏳ <b>Protection khatam hogi</b> {hours}h {minutes}m me",
-    parse_mode="HTML",
-    reply_to_message_id=update.message.id
+            f"🛡 <b>{html.escape(target_user.first_name)} protected hai</b>\n"
+            f"❌ <b>Rob block ho gaya</b>\n"
+            f"⏳ <b>Protection khatam hogi</b> {hours}h {minutes}m me",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
         )
 
     steal = int(int(target.get("coins", 0)) * ROB_PERCENT)
 
     if steal <= 0:
         return await update.message.reply_text(
-    "❌ <b>Target ke paas lootne layak coins nahi hain.</b>",
-    parse_mode="HTML",
-    reply_to_message_id=update.message.id
+            "❌ <b>Target ke paas lootne layak coins nahi hain.</b>",
+            parse_mode="HTML",
+            reply_to_message_id=update.message.id
         )
 
     target["coins"] = int(target.get("coins", 0)) - steal
     robber["coins"] = int(robber.get("coins", 0)) + steal
     robber["last_rob"] = time.time()
+
+    robber["all_time"]["total_earned"] += steal
+    robber["season"]["coins"] += steal
+    add_xp(robber, 6)
 
     await asyncio.gather(
         save_user_async(robber_user.id, robber),
@@ -1457,10 +1529,10 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(save)
 
     await update.message.reply_text(
-    f"💰 <b>ROB SUCCESS</b>\n\n"
-    f"🕵️ <b>{html.escape(robber_user.first_name)}</b> ne <b>{html.escape(target_user.first_name)}</b> se <b>${fmt(steal)}</b> loot liye",
-    parse_mode="HTML",
-    reply_to_message_id=update.message.id
+        f"💰 <b>ROB SUCCESS</b>\n\n"
+        f"🕵️ <b>{html.escape(robber_user.first_name)}</b> ne <b>{html.escape(target_user.first_name)}</b> se <b>${fmt(steal)}</b> loot liye",
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
     )
 
 
@@ -1488,6 +1560,7 @@ async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     u["protected_until"] = now + 86400
+    add_xp(u, 2)
 
     await save_user_async(uid, u)
     await asyncio.to_thread(save)
@@ -1518,6 +1591,16 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target = await load_user(target_user.id)
     reviver = await load_user(reviver_user.id)
 
+    reviver.setdefault("all_time", {})
+    reviver["all_time"].setdefault("duel_wins", 0)
+    reviver["all_time"].setdefault("best_streak", 0)
+    reviver["all_time"].setdefault("total_earned", 0)
+
+    reviver.setdefault("season", {})
+    reviver["season"].setdefault("coins", 0)
+    reviver["season"].setdefault("kills", 0)
+    reviver["season"].setdefault("rank", 0)
+
     if not is_dead(target):
         return await update.message.reply_text(
             "❌ <b>Ye user dead nahi hai</b>",
@@ -1534,6 +1617,8 @@ async def revive(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reviver["coins"] = int(reviver.get("coins", 0)) - REVIVE_COST
     target["dead_until"] = 0
+
+    add_xp(reviver, 4)
 
     await asyncio.gather(
         save_user_async(reviver_user.id, reviver),
@@ -2350,17 +2435,55 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return await query.edit_message_text("❌ Panel closed")
 
     if data == "admin:resetallcoins":
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("UPDATE users SET coins = 0")
-            conn.commit()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users
+                SET 
+                    coins = 0,
+                    bank = 0,
+                    kills = 0,
+                    duel_wins = 0,
+                    duel_losses = 0,
+                    dead_until = 0,
+                    protected_until = 0,
+                    last_daily = 0,
+                    last_rob = 0,
+                    last_kill = 0,
+                    last_bank_tax = 0,
+                    last_flip = 0,
+                    season = %s
+            """, (
+                json.dumps({
+                    "coins": 0,
+                    "kills": 0,
+                    "rank": 0
+                }),
+            ))
+        conn.commit()
 
-        context.user_data.pop("admin_action", None)
-        context.user_data.pop("admin_selected_uid", None)
-        context.user_data.pop("admin_step", None)
+    user_cache.clear()
 
-        return await query.edit_message_text("✅ Sabke coins reset ho gaye")
+    context.user_data.pop("admin_action", None)
+    context.user_data.pop("admin_selected_uid", None)
+    context.user_data.pop("admin_step", None)
 
+    return await query.edit_message_text(
+        "⚙️ <b>PLAYER RESET SUCCESSFUL</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "❌ Wallet: Reset\n"
+        "❌ Bank: Reset\n"
+        "❌ Kills: Reset\n"
+        "❌ Protection/Cooldowns: Reset\n"
+        "❌ Current Season: Reset\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "✅ Level/XP/Badges: Safe\n"
+        "✅ All Time: Safe\n"
+        "✅ Jackpot: Safe\n"
+        "━━━━━━━━━━━━━━━━━━━━",
+        parse_mode="HTML"
+    )
+    
     if data.startswith("admin:setcoins"):
         context.user_data["admin_action"] = "setcoins"
         context.user_data["admin_step"] = "search_user"
