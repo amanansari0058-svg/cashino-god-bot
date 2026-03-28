@@ -1163,7 +1163,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     safe_name = html.escape(user["name"])
 
     text = (
-        "<b>╔══════ 👤 PLAYER PROFILE ══════╗</b>\n\n"
+        "<b>╔═══ 👤 PLAYER PROFILE ═══╗</b>\n\n"
         f'👤 <b>Name:</b> <a href="tg://user?id={tg_user.id}">{safe_name}</a>\n'
         f"⭐ <b>Level:</b> {level}  |  ✨ <b>XP:</b> {xp}/{xp_needed}\n\n"
         "<b>📅 Current Season</b>\n"
@@ -1173,7 +1173,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💸 <b>Total Earned:</b> {total_earned:,}\n\n"
         f"🏅 <b>Badges:</b> {get_display_badges(user, 2)}\n"
         f"❤️ <b>Status:</b> {get_status_text(user)}\n\n"
-        "<b>╚═════════════════════════╝</b>"
+        "<b>╚═══════════════════╝</b>"
     )
 
     save_user(tg_user.id, user)
