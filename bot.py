@@ -2293,19 +2293,21 @@ def get_top_users():
 async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await toprich(update, context)
 
+
+
 # =========================
-# OWNER PREMIUM PANEL
+# OWNER / ADMIN HELPERS
 # =========================
 
 def is_owner(update: Update):
     return update.effective_user.id == OWNER_ID
+
 
 def admin_search_users(query: str, limit: int = 10):
     query = query.strip()
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # direct id search
             if query.isdigit():
                 cur.execute("""
                     SELECT uid, name, username, coins, bank
@@ -2319,7 +2321,6 @@ def admin_search_users(query: str, limit: int = 10):
 
             q = query.lower().lstrip("@")
 
-            # name + username search
             cur.execute("""
                 SELECT uid, name, username, coins, bank
                 FROM users
@@ -2354,7 +2355,6 @@ def admin_search_banned_users(query: str, limit: int = 10):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # direct id search
             if query.isdigit():
                 cur.execute("""
                     SELECT uid, name, username, coins, bank
@@ -2368,7 +2368,6 @@ def admin_search_banned_users(query: str, limit: int = 10):
 
             q = query.lower().lstrip("@")
 
-            # name + username search (only banned)
             cur.execute("""
                 SELECT uid, name, username, coins, bank
                 FROM users
@@ -2383,41 +2382,33 @@ def admin_search_banned_users(query: str, limit: int = 10):
 
             return cur.fetchall()
 
+
+# =========================
+# OWNER PANEL MAIN MENU
+# =========================
+
 @admin_required
 async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update):
         return await update.message.reply_text("❌ Owner only command")
 
     keyboard = [
-        [
-            InlineKeyboardButton("Set Coins", callback_data="admin:setcoins"),
-            InlineKeyboardButton("Add Coins", callback_data="admin:addcoins"),
-        ],
-        [
-            InlineKeyboardButton("Set Bank", callback_data="admin:setbank"),
-            InlineKeyboardButton("Add Bank", callback_data="admin:addbank"),
-        ],
-        [
-            InlineKeyboardButton("Reset User", callback_data="admin:resetuser"),
-            InlineKeyboardButton("User Info", callback_data="admin:userinfo"),
-        ],
-        [
-            InlineKeyboardButton("Ban User", callback_data="admin:banuser"),
-            InlineKeyboardButton("Unban User", callback_data="admin:unbanuser"),
-        ],
-        [
-            InlineKeyboardButton("Reset All Coins", callback_data="admin:resetallcoins"),
-        ],
-        [
-            InlineKeyboardButton("Close", callback_data="admin:close"),
-        ]
+        [InlineKeyboardButton("👤 Player Control", callback_data="admin:menu:player")],
+        [InlineKeyboardButton("💰 Economy", callback_data="admin:menu:economy")],
+        [InlineKeyboardButton("📢 Broadcast", callback_data="admin:menu:broadcast")],
+        [InlineKeyboardButton("⚠️ Danger Zone", callback_data="admin:menu:danger")],
+        [InlineKeyboardButton("❌ Close", callback_data="admin:close")],
     ]
 
     await update.message.reply_text(
-        "👑 OWNER PANEL\n\nChoose an action:",
+        "👑 OWNER PANEL\n\nChoose a category:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+
+# =========================
+# OWNER PANEL CALLBACK
+# =========================
 
 async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2433,6 +2424,90 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data.pop("admin_selected_uid", None)
         context.user_data.pop("admin_step", None)
         return await query.edit_message_text("❌ Panel closed")
+
+    if data == "admin:back_main":
+        keyboard = [
+            [InlineKeyboardButton("👤 Player Control", callback_data="admin:menu:player")],
+            [InlineKeyboardButton("💰 Economy", callback_data="admin:menu:economy")],
+            [InlineKeyboardButton("📢 Broadcast", callback_data="admin:menu:broadcast")],
+            [InlineKeyboardButton("⚠️ Danger Zone", callback_data="admin:menu:danger")],
+            [InlineKeyboardButton("❌ Close", callback_data="admin:close")],
+        ]
+
+        return await query.edit_message_text(
+            "👑 OWNER PANEL\n\nChoose a category:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    if data == "admin:menu:player":
+        keyboard = [
+            [
+                InlineKeyboardButton("Reset User", callback_data="admin:resetuser"),
+                InlineKeyboardButton("User Info", callback_data="admin:userinfo"),
+            ],
+            [
+                InlineKeyboardButton("Ban User", callback_data="admin:banuser"),
+                InlineKeyboardButton("Unban User", callback_data="admin:unbanuser"),
+            ],
+            [
+                InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main"),
+            ]
+        ]
+
+        return await query.edit_message_text(
+            "👤 PLAYER CONTROL\n\nChoose an action:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    if data == "admin:menu:economy":
+        keyboard = [
+            [
+                InlineKeyboardButton("Set Coins", callback_data="admin:setcoins"),
+                InlineKeyboardButton("Add Coins", callback_data="admin:addcoins"),
+            ],
+            [
+                InlineKeyboardButton("Set Bank", callback_data="admin:setbank"),
+                InlineKeyboardButton("Add Bank", callback_data="admin:addbank"),
+            ],
+            [
+                InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main"),
+            ]
+        ]
+
+        return await query.edit_message_text(
+            "💰 ECONOMY PANEL\n\nChoose an action:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    if data == "admin:menu:broadcast":
+        keyboard = [
+            [InlineKeyboardButton("Start Broadcast", callback_data="admin:startbroadcast")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main")]
+        ]
+
+        return await query.edit_message_text(
+            "📢 BROADCAST PANEL\n\nChoose an action:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    if data == "admin:menu:danger":
+        keyboard = [
+            [InlineKeyboardButton("Reset All Coins", callback_data="admin:resetallcoins")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="admin:back_main")]
+        ]
+
+        return await query.edit_message_text(
+            "⚠️ DANGER ZONE\n\nChoose carefully:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    if data == "admin:startbroadcast":
+        context.user_data["admin_action"] = "broadcast"
+        context.user_data["admin_step"] = "enter_broadcast_text"
+
+        return await query.edit_message_text(
+            "📢 BROADCAST MODE\n\nSend the message you want to broadcast to all users."
+        )
 
     if data == "admin:resetallcoins":
         with get_conn() as conn:
@@ -2460,7 +2535,6 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             conn.commit()
 
         user_cache.clear()
-
         context.user_data.pop("admin_action", None)
         context.user_data.pop("admin_selected_uid", None)
         context.user_data.pop("admin_step", None)
@@ -2624,9 +2698,12 @@ async def admin_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             f"Selected user: {name}\n"
             f"UID: {uid}\n\n"
             f"Now send amount"
-        )
-
+            )
     
+
+# =========================
+# OWNER PANEL TEXT HANDLER
+# =========================
 
 async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
@@ -2677,6 +2754,35 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+    if step == "enter_broadcast_text" and action == "broadcast":
+        msg = update.message.text.strip()
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT uid FROM users")
+                rows = cur.fetchall()
+
+        sent = 0
+        failed = 0
+
+        for row in rows:
+            try:
+                await context.bot.send_message(
+                    chat_id=int(row["uid"]),
+                    text=msg
+                )
+                sent += 1
+            except:
+                failed += 1
+
+        context.user_data.pop("admin_step", None)
+        context.user_data.pop("admin_action", None)
+        context.user_data.pop("admin_selected_uid", None)
+
+        return await update.message.reply_text(
+            f"✅ Broadcast completed\n\nSent: {sent}\nFailed: {failed}"
+        )
+
     if step == "enter_amount":
         uid = context.user_data.get("admin_selected_uid")
 
@@ -2717,7 +2823,8 @@ async def admin_panel_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return await update.message.reply_text(
             f"✅ Done\n👤 {name}\n💰 Amount: ${fmt(amount)}"
-            )
+        )
+
 
 
 # =========================
