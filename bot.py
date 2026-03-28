@@ -1085,8 +1085,8 @@ async def jackpot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_user = update.effective_user
     user = get_user_fast(tg_user.id)
-user["name"] = tg_user.first_name or "Unknown"
-user["username"] = tg_user.username or ""
+    user["name"] = tg_user.first_name or "Unknown"
+    user["username"] = tg_user.username or ""
 
     check_and_reset_season(user)
     update_badges(user)
@@ -1121,8 +1121,12 @@ user["username"] = tg_user.username or ""
         "<b>╚══════════════════════════════╝</b>"
     )
 
-    await update.message.reply_text(text, parse_mode="HTML")
     save_user(tg_user.id, user)
+
+    await update.message.reply_text(
+        text,
+        parse_mode="HTML"
+    )
 
 
 # =========================
