@@ -267,21 +267,19 @@ def save_user(uid, user):
 
 
 def get_user_rank(uid):
-    uid = str(uid)
-
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT rank
-                FROM (
-                    SELECT uid,
-                           RANK() OVER (ORDER BY (coins + bank) DESC) AS rank
-                    FROM users
-                ) ranked
-                WHERE uid = %s
-            """, (uid,))
-            row = cur.fetchone()
-            return int(row["rank"]) if row else 0
+                SELECT uid
+                FROM users
+                ORDER BY (COALESCE(coins, 0) + COALESCE(bank, 0)) DESC
+            """)
+            rows = cur.fetchall()
+
+    for i, row in enumerate(rows, start=1):
+        if str(row["uid"]) == str(uid):
+            return i
+    return 0
 
 
 def update_name_from_update(update: Update):
