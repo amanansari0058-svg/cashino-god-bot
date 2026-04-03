@@ -1728,33 +1728,33 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result_text = "Tails"
 
 
-if result_key == choice:
-    profit = bet
-    u["coins"] = int(u.get("coins", 0)) + profit
-    u["all_time"]["total_earned"] += profit
-    u["season"]["coins"] += profit
-    add_xp(u, 4)
-    text = win_message(update.effective_user, "🪙", result_text, choice_text, bet * 2)
+    if result_key == choice:
+        profit = bet
+        u["coins"] = int(u.get("coins", 0)) + profit
+        u["all_time"]["total_earned"] += profit
+        u["season"]["coins"] += profit
+        add_xp(u, 4)
+        text = win_message(update.effective_user, "🪙", result_text, choice_text, bet * 2)
 
-    print(
-        f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=WIN | payout=${fmt(bet * 2)}"
-    )
-else:
-    u["coins"] = int(u.get("coins", 0)) - bet
-    add_xp(u, 2)
-    text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
+        print(
+            f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=WIN | payout=${fmt(bet * 2)}"
+        )
+    else:
+        u["coins"] = int(u.get("coins", 0)) - bet
+        add_xp(u, 2)
+        text = lose_message(update.effective_user, "🪙", result_text, choice_text, bet)
 
-    print(
-        f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=LOSE | loss=${fmt(bet)}"
-    )
+        print(
+            f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=LOSE | loss=${fmt(bet)}"
+        )
 
-save_user(uid, u)
-save()
+    save_user(uid, u)
+    save()
 
-await update.message.reply_text(
-    text,
-    parse_mode="HTML",
-    reply_to_message_id=update.message.id
+    await update.message.reply_text(
+        text,
+        parse_mode="HTML",
+        reply_to_message_id=update.message.id
     )
     
 
