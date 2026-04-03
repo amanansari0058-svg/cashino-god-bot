@@ -1728,12 +1728,12 @@ async def flip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result_text = "Tails"
 
     if result_key == choice:
-        win = bet * 2
-        u["coins"] = int(u.get("coins", 0)) + win
-        u["all_time"]["total_earned"] += win
-        u["season"]["coins"] += win
-        add_xp(u, 4)
-        text = win_message(update.effective_user, "🪙", result_text, choice_text, win)
+    profit = bet
+    u["coins"] = int(u.get("coins", 0)) + profit
+    u["all_time"]["total_earned"] += profit
+    u["season"]["coins"] += profit
+    add_xp(u, 4)
+    text = win_message(update.effective_user, "🪙", result_text, choice_text, bet * 2)
 
         print(
             f"FLIP RESULT | name={user_name} | bet=${fmt(bet)} | pick={choice_text} | result={result_text} | status=WIN | payout=${fmt(win)}"
