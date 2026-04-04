@@ -853,7 +853,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_name_from_update(update)
 
     text = """
-👑 <b>Wᴇʟᴄᴏᴍᴇ ᴛᴏ Cᴀsɪɴᴏ Gᴏᴅ Eᴄᴏɴᴏᴍʏ ❤️‍🔥!</b>
+👑 <b>Wᴇʟᴄᴏᴍᴇ ᴛᴏ Sᴀssʏ Rᴏxʏ Eᴄᴏɴᴏᴍʏ ❤️‍🔥!</b>
 
 Yaha coins kamao, loot maro, kill karo aur games jeeto!
 
@@ -903,7 +903,7 @@ Yaha coins kamao, loot maro, kill karo aur games jeeto!
 @admin_required
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
-        "🎰 <b>Casino God Help</b>\n\n"
+        "🎰 <b>Sassy Roxy Help</b>\n\n"
 
         "💰 <b>Economy</b>\n"
         "• <b>/profile</b> - Your profile\n"
@@ -2263,7 +2263,7 @@ async def toprich(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = await asyncio.to_thread(get_top_users)
 
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
-    text = "🏆 GOD WEALTH TOP 10\n━━━━━━━━━━━━━━━━━━━━━\n\n"
+    text = "🏆 SASSY ROXY WEALTH TOP 10\n━━━━━━━━━━━━━━━━━━━━━\n\n"
 
     for i, row in enumerate(rows):
         uid = row["uid"]
