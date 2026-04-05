@@ -743,12 +743,6 @@ def admin_required(func):
                 "❌ You are banned from using this bot"
             )
 
-        # DM me sirf owner allow
-        if chat.type == "private":
-            if user_id != OWNER_ID:
-                return await update.message.reply_text(
-                    "❌ Bot DM me sirf owner ke liye hai"
-                )
 
         # OWNER pe anti-spam nahi lagega
         if user_id != OWNER_ID:
