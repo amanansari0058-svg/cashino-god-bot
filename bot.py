@@ -1530,7 +1530,6 @@ async def rob(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-@alive_required
 @admin_required
 async def protect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
