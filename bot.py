@@ -92,8 +92,8 @@ LEVEL_BADGES = {
 # =========================
 # DATABASE
 # =========================
-DATABASE_URL = os.getenv("DATABASE_URL")
 
+DATABASE_URL = "postgresql://postgres:kIJNmNyDRDqPPsHbExVbxBirBYqyFFUE@postgres.railway.internal:5432/railway"
 
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
