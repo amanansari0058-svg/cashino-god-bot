@@ -88,13 +88,12 @@ LEVEL_BADGES = {
     100: "King"
 }
 
-import os
-
 # =========================
 # DATABASE
 # =========================
+import os
 
-DATABASE_URL = os.getenv("DATABASE_PUBLIC_URL")
+DATABASE_PUBLIC_URL = os.getenv("DATABASE_PUBLIC_URL")
 
 def get_conn():
     return psycopg.connect(DATABASE_PUBLIC_URL, row_factory=dict_row)
