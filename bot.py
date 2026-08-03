@@ -94,10 +94,10 @@ import os
 # DATABASE
 # =========================
 
-DATABASE_URL = os.getenv("PUBLIC_DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_PUBLIC_URL")
 
 def get_conn():
-    return psycopg.connect(PUBLIC_DATABASE_URL, row_factory=dict_row)
+    return psycopg.connect(DATABASE_PUBLIC_URL, row_factory=dict_row)
 
 
 def migrate_db():
