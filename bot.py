@@ -104,6 +104,9 @@ if not DATABASE_URL:
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
+init_db()
+tax_pool = get_tax_pool()
+
 
 def migrate_db():
     with get_conn() as conn:
@@ -725,9 +728,6 @@ async def expire_active_duel(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     except:
         pass
 
-
-init_db()
-tax_pool = get_tax_pool()
 
 # =========================
 # ADMIN CHECK SYSTEM
