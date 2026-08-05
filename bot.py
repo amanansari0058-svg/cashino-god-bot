@@ -94,9 +94,9 @@ LEVEL_BADGES = {
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-print("🚀 BOT STARTING...")
-print(f"🔍 TOKEN FOUND: {bool(os.getenv('BOT_TOKEN'))}")
-print(f"🔍 DB URL FOUND: {bool(DATABASE_URL)}")
+if not DATABASE_URL:
+    DATABASE_URL = "postgresql://postgres:kIJNmNyDRDqPPsHbExVbxBirBYqyFFUE@postgres.railway.internal:5432/railway" 
+    print("⚠️ Using default internal DATABASE_URL (for debugging)")
 
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
