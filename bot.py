@@ -90,16 +90,16 @@ LEVEL_BADGES = {
     75: "Legend",
     100: "King"
 }
-
+       
 # =========================
 # DATABASE
 # =========================
-
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Safe fallback agar Railway variable na de paye (Crash hone se rokega)
 if not DATABASE_URL:
-    DATABASE_URL = "postgresql://postgres:kIJNmNyDRDqPPsHbExVbxBirBYqyFFUE@postgres.railway.internal:5432/railway" 
-    print("⚠️ Using default internal DATABASE_URL (for debugging)")
+    print("⚠️ WARNING: DATABASE_URL environment variable missing! Using fallback.")
+    DATABASE_URL = "postgresql://postgres:password@postgres.railway.internal:5432/postgres"
 
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
@@ -117,7 +117,6 @@ def migrate_db():
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS all_time TEXT DEFAULT '{}';
             """)
         conn.commit()
-
 
 
 def init_db():
