@@ -124,8 +124,6 @@ def migrate_db():
             """)
         conn.commit()
 
-
-# 👇 INIT_DB FUNCTION DEFINITION YAHAN AAYEGI (Call se pehle)
 def init_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -182,7 +180,6 @@ def init_db():
             """)
 
         conn.commit()
-
 
 def get_tax_pool():
     with get_conn() as conn:
