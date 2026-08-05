@@ -98,18 +98,16 @@ LEVEL_BADGES = {
 # =========================
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Safe fallback agar Railway variable na de paye (Crash hone se rokega)
+# Safe fallback agar Railway variable na de paye
 if not DATABASE_URL:
-    print("⚠️ WARNING: DATABASE_URL environment variable missing! Using fallback.")
+    print("⚠️ WARNING: DATABASE_URL missing! Using fallback.")
     DATABASE_URL = "postgresql://postgres:password@postgres.railway.internal:5432/postgres"
 
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
-init_db()
-tax_pool = get_tax_pool()
 
-
+# 👇 FUNCTION DEFINITIONS PEHLE AANI CHAHIYE (Call se pehle)
 def migrate_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -124,6 +122,7 @@ def migrate_db():
         conn.commit()
 
 
+# 👇 INIT_DB FUNCTION DEFINITION YAHAN AAYEGI (Call se pehle)
 def init_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -205,6 +204,13 @@ def set_tax_pool(value):
 def save():
     global tax_pool
     set_tax_pool(tax_pool)
+
+
+# 👇 AB CALL KARO (Functions define karne ke BAAD)
+print("✅ Calling init_db...")
+init_db()
+tax_pool = get_tax_pool()
+print("✅ Database initialized successfully!")
 
 
 def get_user(uid):
