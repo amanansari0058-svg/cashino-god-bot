@@ -94,6 +94,10 @@ LEVEL_BADGES = {
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+print("🚀 BOT STARTING...")
+print(f"🔍 TOKEN FOUND: {bool(os.getenv('BOT_TOKEN'))}")
+print(f"🔍 DB URL FOUND: {bool(DATABASE_URL)}")
+
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
