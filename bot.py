@@ -106,6 +106,9 @@ if not DATABASE_URL:
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
+print("🚀 Calling init_db() now...")
+init_db()
+tax_pool = get_tax_pool()
 
 # 👇 FUNCTION DEFINITIONS PEHLE AANI CHAHIYE (Call se pehle)
 def migrate_db():
@@ -204,13 +207,6 @@ def set_tax_pool(value):
 def save():
     global tax_pool
     set_tax_pool(tax_pool)
-
-
-# 👇 AB CALL KARO (Functions define karne ke BAAD)
-print("✅ Calling init_db...")
-init_db()
-tax_pool = get_tax_pool()
-print("✅ Database initialized successfully!")
 
 
 def get_user(uid):
