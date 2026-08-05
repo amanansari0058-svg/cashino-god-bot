@@ -91,12 +91,11 @@ LEVEL_BADGES = {
 # =========================
 # DATABASE
 # =========================
-import os
 
-DATABASE_PUBLIC_URL = os.getenv("DATABASE_PUBLIC_URL")
+DATABASE_PUBLIC_URL = os.getenv("DATABASE_URL")
 
 def get_conn():
-    return psycopg.connect(DATABASE_PUBLIC_URL, row_factory=dict_row)
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
 def migrate_db():
