@@ -104,7 +104,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # Safe fallback
 if not DATABASE_URL:
     print("⚠️ WARNING: DATABASE_URL missing! Using fallback.")
-    DATABASE_URL = "postgresql://postgres:password@postgres.railway.internal:5432/postgres"
+    DATABASE_URL = "postgresql://postgres:yzfmTnlTtMZefLfOynXMHOTTtRWgRcLh@postgres.railway.internal:5432/railway"
 
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
