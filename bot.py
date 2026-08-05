@@ -92,7 +92,7 @@ LEVEL_BADGES = {
 # DATABASE
 # =========================
 
-DATABASE_PUBLIC_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
