@@ -1,4 +1,6 @@
 import sys
+print("🚀 DEBUG: BOT STARTED LOADING...")
+sys.stdout.flush()
 
 print(" BOT STARTED LOADING...")
 
