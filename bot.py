@@ -97,14 +97,10 @@ LEVEL_BADGES = {
 # =========================
 # DATABASE
 # =========================
-import sys
+import os
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Safe fallback
-if not DATABASE_URL:
-    print("⚠️ WARNING: DATABASE_URL missing! Using fallback.")
-    DATABASE_URL = "postgresql://postgres:yzfmTnlTtMZefLfOynXMHOTTtRWgRcLh@postgres.railway.internal:5432/railway"
+# ⚠️ RAILWAY KI SPECIFIC INTERNAL URL (Direct hardcode kar diya)
+DATABASE_URL = "postgresql://postgres:yfzNtlltMZxEfLfoYqMMOTTIReqWxhlpQ@postgres.railway.internal:5432/railway"
 
 def get_conn():
     print(f"🔍 DEBUG: Trying to connect to -> {DATABASE_URL}")
