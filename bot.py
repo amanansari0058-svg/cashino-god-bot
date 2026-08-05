@@ -1,7 +1,11 @@
+import sys
+
+print(" BOT STARTED LOADING...")
+
+print(" Debug: Code start ho gaya")
 # =========================
 # IMPORTS
 # =========================
-
 import json
 import os
 import asyncio
@@ -9,7 +13,6 @@ import random
 import time
 import html
 import psycopg
-from psycopg.rows import dict_row
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
