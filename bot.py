@@ -92,13 +92,15 @@ LEVEL_BADGES = {
     75: "Legend",
     100: "King"
 }
-       
+
 # =========================
 # DATABASE
 # =========================
+import sys
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Safe fallback agar Railway variable na de paye
+# Safe fallback
 if not DATABASE_URL:
     print("⚠️ WARNING: DATABASE_URL missing! Using fallback.")
     DATABASE_URL = "postgresql://postgres:password@postgres.railway.internal:5432/postgres"
@@ -110,7 +112,6 @@ print("🚀 Calling init_db() now...")
 init_db()
 tax_pool = get_tax_pool()
 
-# 👇 FUNCTION DEFINITIONS PEHLE AANI CHAHIYE (Call se pehle)
 def migrate_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -188,7 +189,6 @@ def get_tax_pool():
             row = cur.fetchone()
             return int(row["value"]) if row else 0
 
-
 def set_tax_pool(value):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -200,12 +200,10 @@ def set_tax_pool(value):
             """, (str(int(value)),))
         conn.commit()
 
-
 def save():
     global tax_pool
     set_tax_pool(tax_pool)
-
-
+    
 def get_user(uid):
     uid = str(uid)
 
