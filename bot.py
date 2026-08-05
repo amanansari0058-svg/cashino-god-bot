@@ -107,7 +107,12 @@ if not DATABASE_URL:
     DATABASE_URL = "postgresql://postgres:yzfmTnlTtMZefLfOynXMHOTTtRWgRcLh@postgres.railway.internal:5432/railway"
 
 def get_conn():
+    print(f"🔍 DEBUG: Trying to connect to -> {DATABASE_URL}")
+try:
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+except Exception as e:
+    print(f"❌ DB Connection Failed: {e}")
+    raise e
 
 def migrate_db():
     with get_conn() as conn:
